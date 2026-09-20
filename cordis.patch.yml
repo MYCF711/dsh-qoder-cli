@@ -1,0 +1,6 @@
+# Register the Qoder provider without changing the profile's current default
+# model. The plugin reuses the Qoder desktop app's sign-in; no separate login
+# flow is started, and the app's own credential files are never written to.
+- insert:
+    - id: llm-qoder-cli
+      name: dsh-qoder-cli

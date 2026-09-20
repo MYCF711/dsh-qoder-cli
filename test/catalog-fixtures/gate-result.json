@@ -1,0 +1,124 @@
+{
+  "measuredAt": "2026-09-19T20:34:33.603Z",
+  "results": [
+    {
+      "key": "auto",
+      "displayName": "Auto",
+      "status": "unknown",
+      "httpStatus": null,
+      "bodyHead": "NO-NETWORK-IN-TEST"
+    },
+    {
+      "key": "ultimate",
+      "displayName": "Ultimate",
+      "status": "unknown",
+      "httpStatus": null,
+      "bodyHead": "NO-NETWORK-IN-TEST"
+    },
+    {
+      "key": "performance",
+      "displayName": "Performance",
+      "status": "unknown",
+      "httpStatus": null,
+      "bodyHead": "NO-NETWORK-IN-TEST"
+    },
+    {
+      "key": "efficient",
+      "displayName": "Efficient",
+      "status": "unknown",
+      "httpStatus": null,
+      "bodyHead": "NO-NETWORK-IN-TEST"
+    },
+    {
+      "key": "smodel",
+      "displayName": "Sonus",
+      "status": "unknown",
+      "httpStatus": null,
+      "bodyHead": "NO-NETWORK-IN-TEST"
+    },
+    {
+      "key": "cmodel",
+      "displayName": "Cantus",
+      "status": "unknown",
+      "httpStatus": null,
+      "bodyHead": "NO-NETWORK-IN-TEST"
+    },
+    {
+      "key": "qmodel_38max",
+      "displayName": "Qwen3.8-Max",
+      "status": "unknown",
+      "httpStatus": null,
+      "bodyHead": "NO-NETWORK-IN-TEST"
+    },
+    {
+      "key": "qfmodel",
+      "displayName": "Qwen3.8-Flash",
+      "status": "unknown",
+      "httpStatus": null,
+      "bodyHead": "NO-NETWORK-IN-TEST"
+    },
+    {
+      "key": "qmodel_latest",
+      "displayName": "Qwen3.7-Max",
+      "status": "unknown",
+      "httpStatus": null,
+      "bodyHead": "NO-NETWORK-IN-TEST"
+    },
+    {
+      "key": "qmodel",
+      "displayName": "Qwen3.7-Plus",
+      "status": "unknown",
+      "httpStatus": null,
+      "bodyHead": "NO-NETWORK-IN-TEST"
+    },
+    {
+      "key": "kmodel_latest",
+      "displayName": "Kimi-K3",
+      "status": "unknown",
+      "httpStatus": null,
+      "bodyHead": "NO-NETWORK-IN-TEST"
+    },
+    {
+      "key": "kmodel",
+      "displayName": "Kimi-K2.8-Preview",
+      "status": "unknown",
+      "httpStatus": null,
+      "bodyHead": "NO-NETWORK-IN-TEST"
+    },
+    {
+      "key": "gmodel",
+      "displayName": "GLM-5.3",
+      "status": "unknown",
+      "httpStatus": null,
+      "bodyHead": "NO-NETWORK-IN-TEST"
+    },
+    {
+      "key": "gfmodel",
+      "displayName": "GLM-5.3-Flash",
+      "status": "unknown",
+      "httpStatus": null,
+      "bodyHead": "NO-NETWORK-IN-TEST"
+    },
+    {
+      "key": "dmodel",
+      "displayName": "DeepSeek-V4-Pro",
+      "status": "unknown",
+      "httpStatus": null,
+      "bodyHead": "NO-NETWORK-IN-TEST"
+    },
+    {
+      "key": "dfmodel",
+      "displayName": "DeepSeek-Flash",
+      "status": "unknown",
+      "httpStatus": null,
+      "bodyHead": "NO-NETWORK-IN-TEST"
+    },
+    {
+      "key": "mmodel",
+      "displayName": "MiniMax-M3",
+      "status": "unknown",
+      "httpStatus": null,
+      "bodyHead": "NO-NETWORK-IN-TEST"
+    }
+  ]
+}
