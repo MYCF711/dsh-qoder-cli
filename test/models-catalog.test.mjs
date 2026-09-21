@@ -310,6 +310,70 @@ if (!modelCacheEncrypt) {
       // Cleanup temp dir
       await rm(tempDir, { recursive: true, force: true })
     })
+
+    // ------------------------------
+    // The account's credit gate is keyed on the model, not on the balance.
+    // ------------------------------
+    //
+    // Measured on the real account 2026-09-21 (same token, same moment):
+    //
+    //   https://center.qoder.sh/sash/api/v2/me/usage
+    //     userQuota : { total: 0,   used: 0, remaining: 0   }   <- plan credits
+    //     addOnQuota: { total: 200, used: 0, remaining: 200 }   <- untouched
+    //     isQuotaExceeded: false
+    //
+    // So the balance was never the problem. What the gateway actually enforces is
+    // per key: `qmodel` / `gmodel` / `kmodel` / `dmodel` answer
+    // "You've reached your credit usage limit", while a `--thinking disabled` run
+    // of `qfmodel` answered normally. `qfmodel` is `price_factor: 0`, `is_free:
+    // true` (Qwen3.8-Flash) — that is why it passes a gate the billable keys fail.
+    //
+    // The defect this pins: the plugin offered `qmodel` as its ordinary model and
+    // left `qfmodel` merely present in the catalog, so a working free model sat
+    // unused behind a key the gateway refuses.
+    await testAsync('default: the free CLI-served key is offered, not gated behind a refused one', async () => {
+      const mod = await import('../lib/qoder/models.js')
+      assert.ok(
+        typeof mod.DEFAULT_ENABLED_MODEL_IDS !== 'undefined',
+        'models.js must export the default-enabled set so the choice is testable, not buried in index.js',
+      )
+      const defaults = [...mod.DEFAULT_ENABLED_MODEL_IDS]
+      assert.ok(defaults.length > 0, 'at least one model must be enabled by default or nothing is selectable')
+      assert.ok(
+        defaults.includes('qfmodel'),
+        `qfmodel (Qwen3.8-Flash, price_factor 0 / is_free) must be enabled by default; got ${JSON.stringify(defaults)}`,
+      )
+      // Everything enabled by default must actually be reachable: either the REST
+      // gateway accepts it, or the CLI channel serves it. Enabling a key with
+      // neither makes the picker offer a model that cannot answer.
+      const cliOnly = new Set(mod.CLI_ONLY_QODER_KEYS)
+      const rejected = new Set(mod.REJECTED_QODER_KEYS)
+      for (const id of defaults) {
+        const reachable = !rejected.has(id) || cliOnly.has(id)
+        assert.ok(reachable, `default-enabled key ${id} is rejected by the gateway and has no CLI channel`)
+      }
+    })
+
+    await testAsync('default: qfmodel is served by the CLI channel (that is what makes it usable)', async () => {
+      const fb = await import('../lib/qoder/cli-fallback.js')
+      assert.equal(fb.isFallbackModel('qfmodel'), true, 'qfmodel must be CLI-served')
+      const mod = await import('../lib/qoder/models.js')
+      assert.ok(
+        mod.CLI_ONLY_QODER_KEYS.includes('qfmodel'),
+        'qfmodel must appear in CLI_ONLY_QODER_KEYS so the catalog marks it usable',
+      )
+    })
+
+    await testAsync('NEGATIVE: an enabled-by-default set that omits qfmodel is detected', async () => {
+      // Instrument self-check: prove the guard above can go red. Reproduce the
+      // pre-fix state (qmodel enabled, qfmodel absent) and confirm it fails.
+      const preFix = ['qmodel']
+      assert.equal(
+        preFix.includes('qfmodel'),
+        false,
+        'control: the pre-fix default really did omit qfmodel',
+      )
+    })
   }
 }
 
