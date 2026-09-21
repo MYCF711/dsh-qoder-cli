@@ -306,7 +306,7 @@ const actionsRegion = source.slice(actionsStart, actionsEnd + 120)
 
 test('account actions: the add-account button is wired to a login flow', () => {
   assert.ok(
-    source.includes("'网页登录添加账号'"),
+    source.includes("'登录账号'"),
     'the add-account label must be present (users look for this exact string)',
   )
   assert.ok(
@@ -345,6 +345,31 @@ test('sign-in chip: the claimable state opens the campaign page (no fake one-cli
     /window\.open\(/.test(claimBody),
     'the claimable state must open the campaign URL — there is no claim endpoint to POST to',
   )
+})
+
+test('labels: the check-in control reads 「一键签到」', () => {
+  // Renamed at the user's request. The label must not drift back, and the
+  // amount must stay visible when the campaign reports one — the number is the
+  // reason a user clicks at all.
+  assert.ok(
+    source.includes('一键签到'),
+    'the check-in control must be labelled 「一键签到」',
+  )
+  assert.ok(
+    /benefitAmount !== null \? `一键签到（\$\{benefitAmount\} credits）` : '一键签到'/.test(source),
+    'the claimable label must be 「一键签到（<n> credits）」 with a plain 「一键签到」 fallback',
+  )
+})
+
+test('negative: the check-in label assertion fails when the label reverts', () => {
+  // Replace ALL occurrences: `一键签到` appears in the button label, its title
+  // and the tooltip, so a single-occurrence replace leaves the literal present
+  // and the guard would falsely read as "cannot go red".
+  const mutated = source.replaceAll('一键签到', '领取活动奖励')
+  if (mutated === source) throw new Error('mutation did not apply — the check-in label drifted')
+  if (holds((src) => { if (!src.includes('一键签到')) throw new Error('missing') }, mutated)) {
+    throw new Error('the label assertion passed a source without 「一键签到」 — it cannot report red')
+  }
 })
 
 test('negative: actions assertion fails when the refresh handler is hollowed out', () => {
