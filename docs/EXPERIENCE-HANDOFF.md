@@ -96,6 +96,21 @@ data: {"code":"invalid_model_error","message":"Unsupported model \"dfmodel\"", �
 **判据**：把"200"当成功 = 必然漏判，要读到 `event: error` 才算失败。
 已固化为断言 `treats an in-band error frame on a 200 as a failure`。
 
+**但判定器只认字面量是不够的**：早期实现只匹配 `event: error` 与
+`"type":"invalid_model_error"` 两个串，于是 OpenAI 标准错误信封
+`data: {"error":{"code":"invalid_model_error",…}}`（真实上游最可能的形态）
+被判成成功，客户端拿到 `200 + 空 content`。修复见 `lib/qoder/relay.js` 的
+`frameCarriesError()` 与 `lib/qoder/wire.js` 的 `isQoderErrorFrame()`：
+两者都改为**解析 `data:` 帧**，覆盖 5 种错误形态，同时**不误伤**正文里
+提到 "error" 一词的普通文本。
+
+### 另一种"200 却什么都没有"：配额耗尽
+
+若 `result.credits === 0` 且 `num_turns === 1` 且 `is_error === true`，
+且正文含 `credit usage limit` —— 那是**账号积分用尽**，不是代码问题。
+三个症状（无思考过程 / 不调用工具 / 只有纯语言回复）都由"模型未被调用"一个原因解释。
+完整诊断见 [`DIAGNOSIS-credit-exhausted.md`](DIAGNOSIS-credit-exhausted.md)。
+
 ## 5. 模型键 ≠ 界面展示名 —— **只能实测，读 bundle 读不出来**
 
 16 个候选键逐个试探：**10 ACCEPTED / 5 REJECTED / 1 限流**。被拒的 `dfmodel` / `gfmodel` /
