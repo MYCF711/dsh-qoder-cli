@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qoder 卡片预览 v4 — tab 重构 + 第三轮微调（待定稿）</title>
+<style>
+  /* ===== 主题变量：值取自 DSH 主题体（t6 审查实测声明）与 client.js 降级种子 ===== */
+  :root {
+    --dsw-alias-brand-primary: #4d6bfe;
+    --dsw-alias-border-l4: rgba(128,128,128,0.4);
+    --dsw-alias-bg-layer-3: transparent;
+    --dsw-alias-interactive-bg-hover: rgba(128,128,128,0.12);
+    --dsw-static-neutral-bluish-1000: #0f1115;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px 16px 64px;
+    background: var(--dsw-static-neutral-bluish-1000);
+    color: #e8eaed;
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    font-size: 13px;
+  }
+  h1 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+  .note { font-size: 12px; opacity: .55; margin: 0 0 24px; line-height: 1.6; }
+  .stage { max-width: 560px; margin: 0 auto 40px; }
+  .stage-label { font-size: 12px; color: var(--dsw-alias-brand-primary); margin: 0 0 8px; font-weight: 600; }
+
+  /* ===== 卡片外壳（QoderPluginCard 真实值） ===== */
+  .card {
+    border: 0.5px solid rgba(128,128,128,0.35); /* var(--dsw-alias-border-l4, 0.35) */
+    border-radius: 12px;
+    padding: 2px;
+    margin: 8px 0;
+    background: #171a21;
+  }
+  .card-header {
+    appearance: none; width: 100%; font: inherit; color: inherit;
+    text-align: left; cursor: pointer; background: transparent; border: 0;
+    border-radius: 10px; display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px;
+  }
+  .card-header .titles { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+  .card-header .title { font-size: 14px; font-weight: 600; }
+  .card-header .desc { font-size: 12px; opacity: 0.6; }
+  .chevron { display: inline-block; transition: transform .16s; opacity: .6; }
+  .card.open .chevron { transform: rotate(180deg); }
+  .card-body { padding: 4px 14px 12px; display: none; }
+  .card.open .card-body { display: block; }
+
+  /* ===== Tab 栏（t16 真实值） ===== */
+  .tab-bar {
+    display: flex; gap: 4px; margin-bottom: 10px;
+    border-bottom: 0.5px solid var(--dsw-alias-border-l4);
+  }
+  .tab-btn {
+    appearance: none; font: inherit; font-size: 13px;
+    color: inherit; background: transparent; border: 0;
+    border-bottom: 2px solid transparent;
+    padding: 6px 10px; cursor: pointer;
+    opacity: 0.65; transition: color .12s, border-color .12s, opacity .12s;
+  }
+  .tab-btn.active {
+    font-weight: 600;
+    color: var(--dsw-alias-brand-primary);
+    opacity: 1;
+    border-bottom-color: var(--dsw-alias-brand-primary);
+  }
+
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; padding: 4px 0; }
+
+  /* ===== 状态区（row/statusGrid 真实值） ===== */
+  .status-grid {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) minmax(0,1.2fr);
+    column-gap: 14px; row-gap: 6px;
+  }
+  .info-row { display: flex; gap: 8px; font-size: 13.5px; line-height: 20px; min-width: 0; }
+  .info-row .label { opacity: 0.5; width: 72px; flex: none; }           /* t17-3: 标签淡 */
+  .info-row .value { word-break: break-all; min-width: 0; flex: 1; font-weight: 500; } /* t17-3: 值重 */
+
+  /* ===== 登录按钮（t17-4 brand 强调真实值） ===== */
+  .login-btn {
+    font: inherit; font-size: 13px; font-weight: 500;
+    padding: 4px 14px; border-radius: 8px;
+    border: 0.5px solid var(--dsw-alias-brand-primary);
+    background: rgba(77,107,254,0.08);
+    color: var(--dsw-alias-brand-primary);
+    cursor: pointer; transition: opacity .12s, background .12s;
+  }
+  .login-row { margin-top: 10px; display: flex; align-items: center; gap: 10px; }
+  .login-hint { font-size: 12px; opacity: .6; }
+
+  /* ===== 分享 tab 占位（真实文案） ===== */
+  .share-placeholder { font-size: 12px; opacity: 0.6; padding: 12px 0; }
+
+  /* ===== 模型区（buildModelsTab 真实值） ===== */
+  .models-label { font-weight: 600; }
+  .models-hint { font-size: 12px; opacity: 0.6; margin-bottom: 6px; }
+  .model-row {
+    display: grid;
+    grid-template-columns: 34px 1fr 96px 100px 56px;
+    gap: 6px; align-items: center; font-size: 13px;
+    padding: 5px 6px;            /* t17-1: 行 padding 2px→5px */
+    margin: 0 -6px; border-radius: 8px;
+    transition: background .12s;
+  }
+  .model-row:hover { background: var(--dsw-alias-interactive-bg-hover); } /* 预览中直接用真 :hover 演示 state 驱动效果 */
+
+  /* iOS 开关（真实几何：34×19 轨道 / 15×15 knob / left 2↔17） */
+  .toggle { position: relative; display: inline-block; width: 34px; height: 19px; }
+  .toggle input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .toggle .track { position: absolute; inset: 0; pointer-events: none; border-radius: 19px; background: var(--dsw-alias-border-l4); transition: background .15s; }
+  .toggle input:checked + .track { background: var(--dsw-alias-brand-primary); }
+  .toggle .knob { position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.25); transition: left .15s; pointer-events: none; }
+  .toggle input:checked ~ .knob { left: 17px; }
+
+  .model-name-cell { display: flex; gap: 8px; align-items: center; min-width: 0; }
+  .model-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* 「不可用」幽灵描边徽章（t17-2 真实值） */
+  .badge-degraded {
+    flex: none; font-size: 11px; padding: 0 5px; border-radius: 6px;
+    border: 0.5px solid rgba(163,106,3,0.45);
+    color: rgb(154,103,0); opacity: 0.9;
+  }
+  /* 促销徽章（真实值） */
+  .badge-promo {
+    flex: none; font-size: 11px; padding: 0 6px; border-radius: 6px;
+    background: rgba(46,160,67,0.12); color: rgb(46,160,67);
+  }
+  /* 倍率（真实值） */
+  .price {
+    font-size: 11px; opacity: 0.45; justify-self: end;
+    white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  select.mini {
+    font: inherit; font-size: 11px; padding: 2px 5px; border-radius: 6px;
+    background: #1e2230; color: inherit; border: 0.5px solid rgba(128,128,128,0.4);
+    width: 100%;
+  }
+</style>
+</head>
+<body>
+
+<h1>Qoder 卡片预览 v5（待定稿）</h1>
+<p class="note">
+  样式值 100% 取自 <code>lib/client.js</code> 当前工作副本（账号管理 tab = CodeBuddy AccountCard 同款账号卡片）。<br>
+  本体 node_modules 未安装此版本；用户定稿后才部署。悬停模型行可看 hover 高亮（预览用真 :hover 演示实际 state 驱动的效果）。
+</p>
+
+<!-- ============ 折叠态 ============ -->
+<div class="stage">
+  <p class="stage-label">折叠态（默认）</p>
+  <div class="card">
+    <button class="card-header" onclick="toggleCard(this)">
+      <span class="titles">
+        <span class="title">Qoder</span>
+        <span class="desc">使用 Qoder 设备码登录，并选择模型选择器中要提供的模型。</span>
+      </span>
+      <span class="chevron">▾</span>
+    </button>
+  </div>
+</div>
+
+<!-- ============ Tab1 账号管理（CodeBuddy 风格账号卡片） ============ -->
+<div class="stage">
+  <p class="stage-label">Tab 1 · 账号管理（默认激活，CodeBuddy AccountCard 同款风格）</p>
+  <div class="card open">
+    <button class="card-header" onclick="toggleCard(this)">
+      <span class="titles">
+        <span class="title">Qoder</span>
+        <span class="desc">使用 Qoder 设备码登录，并选择模型选择器中要提供的模型。</span>
+      </span>
+      <span class="chevron">▾</span>
+    </button>
+    <div class="card-body">
+      <div class="tab-bar">
+        <button class="tab-btn active">状态</button>
+        <button class="tab-btn">可选模型</button>
+      </div>
+      <div class="tab-pane active">
+        <!-- 登录入口：卡片区域顶部（CodeBuddy「扫码登录添加账号」同位置同风格） -->
+        <div style="margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <button class="login-btn">重新登录（设备码）</button>
+          <span style="font-size:12px; opacity:.6;">切换或删除通过设备码登录添加的 Qoder 账号。</span>
+        </div>
+
+        <!-- 账号卡片（article.accountCard 同构；单账号显示「当前」pill） -->
+        <article style="border:0.5px solid rgba(128,128,128,0.4); border-radius:10px; overflow:hidden; background:rgba(255,255,255,0.02);">
+          <header style="display:flex; align-items:center; gap:10px; padding:10px 12px;">
+            <div style="flex:none; width:34px; height:34px; border-radius:50%;
+                        background:linear-gradient(135deg, hsl(210 62% 46%), hsl(250 62% 38%));
+                        color:#fff; font-size:15px; font-weight:600;
+                        display:flex; align-items:center; justify-content:center; text-transform:uppercase;">M</div>
+            <div style="min-width:0; flex:1;">
+              <div title="demo-user" style="font-size:13.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">demo-user</div>
+              <div style="font-size:11.5px; opacity:.55; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">user@example.com</div>
+            </div>
+            <div style="flex:none; display:flex; align-items:center; gap:6px; font-size:11.5px; opacity:.65;">
+              <span title="在线" style="flex:none; width:8px; height:8px; border-radius:50%;
+                    background:rgb(46,160,67); box-shadow:0 0 0 2px rgba(46,160,67,0.18);"></span>
+              <span style="white-space:nowrap;">令牌到期 2026/10/19 19:04:02</span>
+            </div>
+          </header>
+          <section style="padding:8px 12px 10px; border-top:0.5px solid rgba(128,128,128,0.4);">
+            <div class="status-grid">
+              <div class="info-row"><span class="label">账号</span><span class="value">demo-user</span></div>
+              <div class="info-row"><span class="label">邮箱</span><span class="value">user@example.com</span></div>
+              <div class="info-row"><span class="label">令牌到期</span><span class="value">2026/10/19 19:04:02</span></div>
+              <div class="info-row"><span class="label">区域</span><span class="value">global</span></div>
+            </div>
+          </section>
+          <footer style="display:flex; align-items:center; justify-content:flex-end; gap:8px; padding:8px 12px; border-top:0.5px solid rgba(128,128,128,0.4);">
+            <span style="flex:none; font-size:11px; padding:2px 10px; border-radius:999px;
+                  background:rgba(46,160,67,0.14); color:rgb(46,160,67); font-weight:500;">当前</span>
+          </footer>
+        </article>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Tab2 可选模型 ============ -->
+<div class="stage">
+  <p class="stage-label">Tab 2 · 可选模型（17 行示意节选，含全部徽章形态）</p>
+  <div class="card open">
+    <button class="card-header" onclick="toggleCard(this)">
+      <span class="titles">
+        <span class="title">Qoder</span>
+        <span class="desc">使用 Qoder 设备码登录，并选择模型选择器中要提供的模型。</span>
+      </span>
+      <span class="chevron">▾</span>
+    </button>
+    <div class="card-body">
+      <div class="tab-bar">
+        <button class="tab-btn">状态</button>
+        <button class="tab-btn active">可选模型</button>
+      </div>
+      <div class="tab-pane active">
+        <div class="models-label">可选模型</div>
+        <div class="models-hint">仅勾选的模型会出现在模型选择器中。</div>
+
+        <!-- 无任何徽章 + 双下拉 -->
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></span>
+          <span class="model-name-cell"><span class="model-name">Auto</span></span>
+          <span></span>
+          <select class="mini"><option>200K (200K)</option></select>
+          <span class="price"></span>
+        </div>
+
+        <!-- 思考档位 + 上下文档位 + 倍率 -->
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></span>
+          <span class="model-name-cell"><span class="model-name">Ultimate</span></span>
+          <select class="mini"><option>关闭思考</option><option>低</option><option>中</option><option selected>高</option><option>极高</option><option>最大</option></select>
+          <select class="mini"><option>200K (200K)</option><option>400K (400K)</option><option>1M (1000K)</option></select>
+          <span class="price">×1.6</span>
+        </div>
+
+        <!-- 幽灵「不可用」+ 绿促销并排（t17-2 冲突场景） -->
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox"><span class="track"></span><span class="knob"></span></span>
+          <span class="model-name-cell">
+            <span class="model-name">Qwen3.8-Max</span>
+            <span class="badge-degraded" title="not available on this account (measured …)">不可用</span>
+            <span class="badge-promo" title="限时免费">限时免费</span>
+          </span>
+          <select class="mini"><option selected>关闭思考</option><option>低</option><option>中</option><option>高</option></select>
+          <select class="mini"><option>200K (200K)</option><option>400K (400K)</option></select>
+          <span class="price">×1</span>
+        </div>
+
+        <!-- 仅「不可用」，无促销 -->
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox"><span class="track"></span><span class="knob"></span></span>
+          <span class="model-name-cell"><span class="model-name">Efficient</span><span class="badge-degraded" title="gateway reports no available backend (HTTP 429 provider_error)">不可用</span></span>
+          <span></span>
+          <span></span>
+          <span class="price"></span>
+        </div>
+
+        <!-- 单档模型（占位保持列对齐） -->
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></span>
+          <span class="model-name-cell"><span class="model-name">MiniMax-M3</span></span>
+          <span></span>
+          <span></span>
+          <span class="price">×1</span>
+        </div>
+
+        <!-- 1M 上下文模型 -->
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></span>
+          <span class="model-name-cell"><span class="model-name">GLM-5.3</span></span>
+          <select class="mini"><option selected>关闭思考</option><option>低</option><option>中</option><option>高</option><option>极高</option></select>
+          <select class="mini"><option>200K (200K)</option><option selected>1M (1000K)</option></select>
+          <span class="price">×1</span>
+        </div>
+
+        <!-- 禁用态开关（selection_writable=false / busy） -->
+        <div class="model-row">
+          <span class="toggle" style="opacity:.55"><input type="checkbox" disabled><span class="track" style="background:rgba(128,128,128,0.25)"></span><span class="knob"></span></span>
+          <span class="model-name-cell"><span class="model-name">DeepSeek-V4-Pro</span></span>
+          <select class="mini" disabled><option selected>关闭思考</option></select>
+          <select class="mini" disabled><option>200K (200K)</option></select>
+          <span class="price">×1.2</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Tab3 目录分享 ============ -->
+<div class="stage">
+  <p class="stage-label">Tab 3 · 目录分享（当前 CATALOG_SHARE_ISSUE_URL='' → 占位态）</p>
+  <div class="card open">
+    <button class="card-header" onclick="toggleCard(this)">
+      <span class="titles">
+        <span class="title">Qoder</span>
+        <span class="desc">使用 Qoder 设备码登录，并选择模型选择器中要提供的模型。</span>
+      </span>
+      <span class="chevron">▾</span>
+    </button>
+    <div class="card-body">
+      <p style="font-size:12px; opacity:.6; margin:4px 0 0;">（目录分享 tab 已在收尾任务中移除——账号卡片版 tab 仅为「状态 / 可选模型」两项。）</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  function toggleCard(btn) { btn.parentElement.classList.toggle('open') }
+  document.querySelectorAll('.tab-bar').forEach((bar) => {
+    bar.addEventListener('click', (event) => {
+      const btn = event.target.closest('.tab-btn')
+      if (!btn) return
+      bar.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'))
+      btn.classList.add('active')
+      const card = bar.closest('.card')
+      card.querySelectorAll('.tab-pane').forEach((p) => p.classList.remove('active'))
+      card.querySelectorAll('.tab-pane')[Array.from(bar.children).indexOf(btn)].classList.add('active')
+    })
+  })
+</script>
+</body>
+</html>

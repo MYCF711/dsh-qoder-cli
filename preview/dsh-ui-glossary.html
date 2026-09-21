@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "PingFang SC","Microsoft YaHei",-apple-system,sans-serif; background: #0f1115; padding: 24px; width: 720px; color: #e8e8e8; }
+  h1 { font-size: 18px; margin-bottom: 16px; }
+  h2 { font-size: 15px; margin: 20px 0 10px; color: #4d6bfe; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; }
+  h3 { font-size: 13px; margin: 12px 0 6px; color: #ccc; }
+  .item { display: flex; gap: 14px; align-items: flex-start; margin: 10px 0; padding: 10px 12px; background: rgba(255,255,255,0.03); border-radius: 8px; }
+  .demo { flex: none; width: 120px; display: flex; align-items: center; justify-content: center; min-height: 36px; }
+  .info { flex: 1; }
+  .name { font-size: 13px; font-weight: 600; color: #e8e8e8; }
+  .token { font-size: 11px; color: #4d6bfe; font-family: monospace; margin-top: 2px; }
+  .desc { font-size: 11px; color: #888; margin-top: 2px; line-height: 1.4; }
+  /* 开关 */
+  .switch { position: relative; display: inline-block; width: 34px; height: 19px; }
+  .switch .pill { position: absolute; inset: 0; border-radius: 19px; }
+  .switch .knob { position: absolute; top: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.25); }
+  .on .pill { background: #4d6bfe; } .on .knob { left: 17px; }
+  .off .pill { background: rgba(255,255,255,0.15); } .off .knob { left: 2px; }
+  /* 按钮 */
+  .btn-primary { appearance:none; font-size: 12px; padding: 5px 14px; border-radius: 8px; border: 1px solid transparent; background: #4d6bfe; color: #fff; font-weight: 500; cursor: pointer; }
+  .btn-ghost { appearance:none; font-size: 12px; padding: 5px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: transparent; color: #ccc; cursor: pointer; }
+  /* 徽章 */
+  .chip { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 6px; white-space: nowrap; }
+  .chip-green { background: rgba(46,160,67,0.12); color: rgb(46,160,67); }
+  .chip-amber-stroke { border: 0.5px solid rgba(163,106,3,0.45); color: rgb(154,103,0); opacity: 0.9; }
+  .chip-danger { background: rgba(163,30,30,0.14); color: rgb(200,60,60); }
+  .chip-warning { background: rgba(163,106,3,0.16); color: rgb(154,103,0); }
+  .chip-neutral { background: rgba(46,160,67,0.14); color: rgb(46,160,67); }
+  /* 头像 */
+  .avatar { width: 34px; height: 34px; border-radius: 50%; background: rgba(77,107,254,0.14); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: #e8e8e8; }
+  /* 状态点 */
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .dot-green { background: rgb(46,160,67); box-shadow: 0 0 4px rgba(46,160,67,0.3); }
+  /* 进度条 */
+  .progress-track { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.08); width: 100px; }
+  .progress-fill { height: 4px; border-radius: 2px; background: #4d6bfe; width: 60%; }
+  /* tab */
+  .tabs { display: flex; gap: 4px; border-bottom: 0.5px solid rgba(255,255,255,0.08); padding-bottom: 6px; }
+  .tab { font-size: 13px; padding: 4px 10px; background: none; border: none; cursor: pointer; color: #999; opacity: 0.65; }
+  .tab.active { color: #e8e8e8; font-weight: 600; opacity: 1; border-bottom: 2px solid #4d6bfe; padding-bottom: 4px; }
+  /* 输入框 */
+  input[type=text] { font-size: 12px; padding: 5px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.06); color: #e8e8e8; width: 140px; }
+  select { font-size: 11px; padding: 2px 5px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.06); color: #e8e8e8; width: 100%; }
+  /* 色板 */
+  .swatch { display: inline-block; width: 28px; height: 28px; border-radius: 6px; margin-right: 4px; vertical-align: middle; }
+  .swatch-row { display: flex; gap: 6px; align-items: center; margin: 4px 0; }
+  .swatch-label { font-size: 11px; color: #888; font-family: monospace; }
+</style>
+</head>
+<body>
+<h1>DSH UI 术语速查手册</h1>
+<p style="font-size:12px;color:#888;margin-bottom:16px;">配图配文字 · 左边是渲染效果 · 右边是官方名称 + token + 用途说明</p>
+
+<h2>§1 色彩 Token（--dsw-alias-*）</h2>
+<p style="font-size:11px;color:#888;margin-bottom:8px;">DSH 的颜色不直接写色值，全部通过 CSS 变量引用，自动适配亮/暗主题。</p>
+
+<div class="swatch-row"><span class="swatch" style="background:#4d6bfe"></span><span class="swatch-label">--dsw-alias-brand-primary → 品牌色（按钮/开关/tab 下划线）</span></div>
+<div class="swatch-row"><span class="swatch" style="background:#e8e8e8"></span><span class="swatch-label">--dsw-alias-label-primary → 主要文字色</span></div>
+<div class="swatch-row"><span class="swatch" style="background:#999"></span><span class="swatch-label">--dsw-alias-label-secondary → 次要文字色</span></div>
+<div class="swatch-row"><span class="swatch" style="background:#666"></span><span class="swatch-label">--dsw-alias-label-tertiary → 三级文字色</span></div>
+<div class="swatch-row"><span class="swatch" style="background:rgba(255,255,255,0.06)"></span><span class="swatch-label">--dsw-alias-bg-layer-1 → 底层背景色</span></div>
+<div class="swatch-row"><span class="swatch" style="background:rgba(255,255,255,0.04)"></span><span class="swatch-label">--dsw-alias-bg-layer-3 → 卡片/面板底色</span></div>
+<div class="swatch-row"><span class="swatch" style="background:rgba(255,255,255,0.15)"></span><span class="swatch-label">--dsw-alias-border-l4 → 边框色</span></div>
+<div class="swatch-row"><span class="swatch" style="background:rgba(163,30,30,0.14)"></span><span class="swatch-label">--dsw-alias-label-error → 错误/危险色</span></div>
+
+<h2>§2 组件术语</h2>
+
+<h3>开关（Switch）</h3>
+<div class="item">
+  <div class="demo">
+    <span class="switch on"><span class="pill"></span><span class="knob"></span></span>
+    &nbsp;
+    <span class="switch off"><span class="pill"></span><span class="knob"></span></span>
+  </div>
+  <div class="info">
+    <div class="name">Switch / 开关</div>
+    <div class="token">checked / unchecked</div>
+    <div class="desc">绿色=选中(checked)，灰色=未选中(unchecked)。选中时 brand 色底+白点右滑。</div>
+  </div>
+</div>
+
+<h3>按钮（Button）</h3>
+<div class="item">
+  <div class="demo">
+    <button class="btn-primary">主按钮</button>&nbsp;
+    <button class="btn-ghost">幽灵按钮</button>
+  </div>
+  <div class="info">
+    <div class="name">Button / 按钮</div>
+    <div class="token">primary（brand 实底）/ ghost（描边透明底）</div>
+    <div class="desc">primary=brand 色实底白字（登录/签到等主操作）；ghost=透明底描边（刷新/取消等次操作）。</div>
+  </div>
+</div>
+
+<h3>徽章（Chip）</h3>
+<div class="item">
+  <div class="demo" style="flex-wrap:wrap;gap:4px;">
+    <span class="chip chip-promo" style="background:rgba(46,160,67,0.12);color:rgb(46,160,67);">错峰 4 折</span>
+    <span class="chip chip-amber-stroke" style="border:0.5px solid rgba(163,106,3,0.45);color:rgb(154,103,0);opacity:0.9;">不可用</span>
+    <span class="chip chip-danger" style="background:rgba(163,30,30,0.14);color:rgb(200,60,60);">已过期</span>
+  </div>
+  <div class="info">
+    <div class="name">Chip / 徽章（药丸标签）</div>
+    <div class="token">promo=绿色实底 / degraded=琥珀描边 / danger=红色实底</div>
+    <div class="desc">促销=绿色实底；不可用=琥珀描边幽灵样式；已过期=红色实底。三种视觉重量表示三种信息优先级。</div>
+  </div>
+</div>
+
+<h3>头像（Avatar）</h3>
+<div class="item">
+  <div class="demo">
+    <div class="avatar">M</div>
+  </div>
+  <div class="info">
+    <div class="name">Avatar / 头像</div>
+    <div class="token">avatarTone(name) → rgba 品牌色系淡底</div>
+    <div class="desc">34px 圆形，首字母大写，底色按名字 hash 从六色品牌色系取色。有 avatar_url 时优先显示图片。</div>
+  </div>
+</div>
+
+<h3>状态点（Status Dot）</h3>
+<div class="item">
+  <div class="demo">
+    <span class="dot dot-green"></span>
+    &nbsp;<span style="font-size:11px;color:#888;">在线</span>
+  </div>
+  <div class="info">
+    <div class="name">Status Dot / 状态点</div>
+    <div class="token">绿=在线/正常，红=异常</div>
+    <div class="desc">8px 圆点 + 淡色光晕（box-shadow），放在名称旁表示连接状态。</div>
+  </div>
+</div>
+
+<h3>进度条（Progress Bar）</h3>
+<div class="item">
+  <div class="demo">
+    <div class="progress-track"><div class="progress-fill"></div></div>
+  </div>
+  <div class="info">
+    <div class="name">Progress Bar / 进度条</div>
+    <div class="token">progressTrack（轨道）+ progressFill（填充）</div>
+    <div class="desc">4px 高圆角轨道，brand 色填充表示用量/进度百分比。</div>
+  </div>
+</div>
+
+<h3>Tab 导航（二级菜单）</h3>
+<div class="item">
+  <div class="demo" style="width:200px;">
+    <div class="tabs">
+      <button class="tab active">账号管理</button>
+      <button class="tab">可选模型</button>
+    </div>
+  </div>
+  <div class="info">
+    <div class="name">Tab Bar / 标签导航</div>
+    <div class="token">active → border-bottom 2px brand 色</div>
+    <div class="desc">下划线高亮当前选中项，非选中项 opacity 0.65。用于卡片内二级菜单切换。</div>
+  </div>
+</div>
+
+<h3>输入框（Text Input）</h3>
+<div class="item">
+  <div class="demo">
+    <input type="text" placeholder="搜索…">
+  </div>
+  <div class="info">
+    <div class="name">Text Input / 文本输入框</div>
+    <div class="token">border + bg 半透明</div>
+    <div class="desc">用于搜索/路径输入等场景。</div>
+  </div>
+</div>
+
+<h3>下拉选择（Select）</h3>
+<div class="item">
+  <div class="demo">
+    <select><option>中</option><option>高</option></select>
+  </div>
+  <div class="info">
+    <div class="name">Select / 下拉选择框</div>
+    <div class="token">用于思考档位/上下文档位等选项</div>
+    <div class="desc">模型行里选思考深度（关闭/低/中/极高）和上下文窗口（200K/400K/1M）。</div>
+  </div>
+</div>
+
+<h2>§3 交互状态</h2>
+<div class="item">
+  <div class="info">
+    <div class="name">交互状态一览</div>
+    <div class="desc" style="font-size:12px;line-height:1.8;">
+      <b>hover</b> = 鼠标悬停（行衬底高亮）<br>
+      <b>active</b> = 当前选中的 tab / 当前账号<br>
+      <b>checked</b> = 开关打开<br>
+      <b>disabled</b> = 禁用（按钮变灰 opacity 0.55 + cursor default）<br>
+      <b>busy</b> = 请求进行中（全部按钮禁用防双击）<br>
+      <b>focused</b> = 键盘焦点（border 变 brand 色）
+    </div>
+  </div>
+</div>
+
+<h2>§4 布局术语</h2>
+<div class="item">
+  <div class="info">
+    <div class="name">布局方式</div>
+    <div class="desc" style="font-size:12px;line-height:1.8;">
+      <b>grid</b> = 网格布局（固定列宽对齐，如模型行 34px/1fr/96px/100px/56px）<br>
+      <b>flex</b> = 弹性布局（自适应宽度，如按钮行）<br>
+      <b>gap</b> = 元素之间的间距<br>
+      <b>padding</b> = 内边距（卡片内容与边框的距离）<br>
+      <b>margin</b> = 外边距（元素与其他元素的距离）
+    </div>
+  </div>
+</div>
+
+<h2>§5 我们卡片的对照速查</h2>
+<div class="item">
+  <div class="info">
+    <div class="desc" style="font-size:12px;line-height:2;">
+      "那个绿色的开关" → <b>Switch 组件</b>，checked 时 brand 色底<br>
+      "那个黑的登录按钮" → <b>primary Button</b>，brand 实底<br>
+      "那个绿的小标签" → <b>Chip（promo 徽章）</b>，绿色实底<br>
+      "那个描边的不可用标签" → <b>Chip（degraded 徽章）</b>，琥珀描边幽灵样式<br>
+      "那个圆圈头像" → <b>Avatar</b>，34px 圆形 + avatarTone 品牌色淡底<br>
+      "那个小绿点" → <b>Status Dot</b>，8px 绿色圆点 + 淡绿光晕<br>
+      "那个横条进度" → <b>Progress Bar</b>，4px 轨道 + brand 色填充<br>
+      "上面那排标签" → <b>Tab Bar</b>，下划线高亮当前选中项
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

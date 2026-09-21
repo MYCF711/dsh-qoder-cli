@@ -1,0 +1,48 @@
+﻿# Build artifacts — never publish
+*.tgz
+.npm-cache-tmp/
+
+# Ephemeral native-invocation run directories (32-hex-char names, contain
+# run.cmd/stdout/code.txt). Scoped to the exact shape so source directories
+# (lib/, test/, docs/, preview/, tools/) are never caught by it.
+[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/
+
+# Private / reverse-engineering material — not for public distribution.
+# Rationale: these document HOW to bypass Qoder's request signing (210 char
+# offsets, COSY material, WASM internals). Interoperability research is lawful
+# in most jurisdictions, but publishing a reproducible bypass invites both
+# takedown requests and hostile attention. Kept locally; see
+# docs/DOCS-PUBLIC-POLICY.md for the full classification.
+docs/QODER-PROTOCOL.md
+docs/QODER-PROTOCOL-FINDINGS.md
+docs/CODEBUDDY-ARCHITECTURE.md
+docs/analysis-cosy-material.md
+docs/cosy-signature-analysis.md
+docs/experiment-endpoint-election.md
+docs/umid-analysis.md
+docs/MODEL-LIST-SIGNATURE-LOG.md
+docs/DOCS-PUBLIC-POLICY.md
+docs/SECURITY-PREPUSH-AUDIT.md
+
+# OS junk
+Thumbs.db
+Desktop.ini
+# Internal handoff notes — not for public distribution
+docs/EXPERIENCE-MEMORY.md
+
+# --- Public-distribution exclusions (added 2026-09-21) ---
+# The auth WASM is Qoder's official 298KB binary. It is deliberately NOT
+# shipped: redistributing it is a ToS and licensing problem, and it is only
+# needed by the experimental remote-catalog tier (which ships disabled).
+# Supply it locally via QODER_AUTH_WASM_PATH when you need that tier.
+lib/qoder/wasm/
+QODER_AUTH_WASM_PATH
+
+# Local backups taken before edits — never publish.
+backup-captain/
+*.pre-desense
+
+# Reverse-engineering findings that quote obf offsets / signing material.
+# Same class as the docs/QODER-PROTOCOL.md entries above.
+docs/FINDING-model-list-signature.md
+docs/MODEL-LIST-SIGNATURE-LOG.md

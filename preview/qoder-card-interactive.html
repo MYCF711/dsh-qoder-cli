@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qoder 卡片完整可交互预览 — 全部 tab + 资源明细 + 用量统计</title>
+<style>
+  /* ==================================================================
+     主题变量：取自 lib/client.js 降级种子 + DSH 主题体实测值
+     ================================================================== */
+  :root {
+    --dsw-alias-brand-primary: #4d6bfe;
+    --dsw-alias-border-l4: rgba(128,128,128,0.4);
+    --dsw-alias-bg-layer-3: transparent;
+    --dsw-alias-interactive-bg-hover: rgba(128,128,128,0.12);
+    --dsw-static-neutral-bluish-1000: #0f1115;
+    --card-bg: #171a21;
+    --card-bg-2: #1c2029;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px 16px 64px;
+    background: var(--dsw-static-neutral-bluish-1000);
+    color: #e8eaed;
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    font-size: 13px;
+  }
+  h1 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+  .note { font-size: 12px; opacity: .55; margin: 0 0 24px; line-height: 1.6; }
+  .note code { color: #9ab; }
+  .stage { max-width: 600px; margin: 0 auto; }
+
+  /* ===== 卡片外壳（QoderPluginCard 真实值） ===== */
+  .card {
+    border: 0.5px solid rgba(128,128,128,0.35);
+    border-radius: 12px;
+    padding: 2px;
+    margin: 8px 0;
+    background: var(--card-bg);
+  }
+  .card-header {
+    appearance: none; width: 100%; font: inherit; color: inherit;
+    text-align: left; cursor: pointer; background: transparent; border: 0;
+    border-radius: 10px; display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px;
+  }
+  .card-header .titles { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+  .card-header .title { font-size: 14px; font-weight: 600; }
+  .card-header .desc { font-size: 12px; opacity: 0.6; }
+  .chevron { display: inline-block; transition: transform .16s; opacity: .6; }
+  .card.open .chevron { transform: rotate(180deg); }
+  .card-body { padding: 4px 14px 12px; }
+
+  /* ===== 账号操作行（tab 栏上方，真实值） ===== */
+  .account-actions {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+  .btn-brand {
+    appearance: none; font: inherit; font-size: 13px; line-height: 1.5;
+    padding: 5px 14px; border-radius: 8px; border: 1px solid transparent;
+    background: var(--dsw-alias-brand-primary);
+    color: #fff; cursor: pointer; transition: opacity .12s;
+  }
+  .btn-brand:hover { opacity: .9; }
+  .btn-ghost {
+    appearance: none; font: inherit; font-size: 13px; line-height: 1.5;
+    padding: 5px 14px; border-radius: 8px;
+    border: 0.5px solid var(--dsw-alias-border-l4);
+    background: var(--dsw-alias-bg-layer-3);
+    color: inherit; cursor: pointer; transition: opacity .12s, background .12s;
+  }
+  .btn-ghost:hover { background: var(--dsw-alias-interactive-bg-hover); }
+  .hint { font-size: 12px; opacity: .6; }
+
+  /* ===== Tab 栏（真实值：下划线 + 字重） ===== */
+  .tab-bar {
+    display: flex; gap: 4px; margin-bottom: 10px;
+    border-bottom: 0.5px solid var(--dsw-alias-border-l4);
+  }
+  .tab-btn {
+    appearance: none; font: inherit; font-size: 13px;
+    color: inherit; background: transparent; border: 0;
+    border-bottom: 2px solid transparent;
+    padding: 6px 10px; cursor: pointer;
+    opacity: 0.65; transition: color .12s, border-color .12s, opacity .12s;
+  }
+  .tab-btn.active {
+    font-weight: 600;
+    color: var(--dsw-alias-brand-primary);
+    opacity: 1;
+    border-bottom-color: var(--dsw-alias-brand-primary);
+  }
+  .tab-pane { display: none; padding: 4px 0; }
+  .tab-pane.active { display: block; }
+
+  /* ===== 账号卡片（article 三段式，真实值） ===== */
+  .account-card {
+    border: 0.5px solid var(--dsw-alias-border-l4);
+    border-radius: 10px; overflow: hidden;
+    background: rgba(255,255,255,0.02);
+    margin-bottom: 10px;
+  }
+  .account-card.current { border-color: rgba(77,107,254,0.5); }
+  .ac-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; user-select: none; }
+  .ac-head:hover { background: var(--dsw-alias-interactive-bg-hover); }
+  .avatar {
+    flex: none; width: 34px; height: 34px; border-radius: 50%;
+    overflow: hidden; color: var(--dsw-alias-label-primary, inherit);
+    font-size: 15px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    text-transform: uppercase;
+  }
+  .avatar.tone0 { background: rgba(77,107,254,0.14); }
+  .avatar.tone1 { background: rgba(46,160,67,0.14); }
+  .avatar.tone2 { background: rgba(163,106,3,0.14); }
+  .ac-names { min-width: 0; flex: 1; }
+  .ac-name { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ac-mail { font-size: 11.5px; opacity: .55; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ac-meta { flex: none; display: flex; align-items: center; gap: 6px; font-size: 11.5px; }
+  .dot-online {
+    flex: none; width: 8px; height: 8px; border-radius: 50%;
+    background: rgb(46,160,67);
+    box-shadow: 0 0 0 2px rgba(46,160,67,0.18);
+  }
+  .dot-off {
+    flex: none; width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(128,128,128,0.5);
+  }
+  .chip {
+    display: inline-block; flex: none; font-size: 11px; padding: 1px 8px;
+    border-radius: 999px; font-weight: 500; white-space: nowrap;
+  }
+  .chip.danger  { background: rgba(163,30,30,0.14); color: rgb(200,60,60); }
+  .chip.warning { background: rgba(163,106,3,0.16); color: rgb(154,103,0); }
+  .chip.neutral { background: rgba(46,160,67,0.14); color: rgb(46,160,67); }
+  .btn-checkin {
+    appearance: none; flex: none; font: inherit; font-size: 11px; line-height: 1.5;
+    padding: 2px 10px; border-radius: 999px; border: 1px solid transparent;
+    background: var(--dsw-alias-brand-primary); color: #fff;
+    cursor: default; opacity: .5;
+  }
+  .pill-current, .pill-standby {
+    flex: none; font-size: 11px; padding: 2px 10px; border-radius: 999px; font-weight: 500;
+  }
+  .pill-current { background: rgba(46,160,67,0.14); color: rgb(46,160,67); }
+  .pill-standby {
+    border: 0.5px solid var(--dsw-alias-border-l4);
+    background: var(--dsw-alias-bg-layer-3); color: inherit; opacity: .8;
+  }
+
+  /* ===== 资源明细（展开区，真实值骨架 + 假数据） ===== */
+  .ac-detail { border-top: 0.5px solid var(--dsw-alias-border-l4); padding: 8px 12px 12px; }
+  .sec-toggle {
+    display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+    margin-top: 10px;
+  }
+  .sec-toggle:first-child { margin-top: 0; }
+  .sec-title { font-size: 13px; font-weight: 600; flex: 1; }
+  .sec-chev { font-size: 11px; opacity: .6; transition: transform .16s; display: inline-block; }
+  .sec.open .sec-chev { transform: rotate(180deg); }
+  .sec-desc { font-size: 11.5px; opacity: .55; margin: 2px 0 8px; }
+  .sec-body { display: none; }
+  .sec.open .sec-body { display: block; }
+  .big-row { display: flex; align-items: baseline; gap: 6px; }
+  .big-num { font-size: 16px; font-weight: 600; }
+  .pct { font-size: 11.5px; opacity: .55; }
+  .remain { margin-left: auto; font-size: 11.5px; opacity: .65; white-space: nowrap; }
+  .track {
+    margin-top: 6px; height: 4px; border-radius: 2px;
+    background: var(--dsw-alias-border-l4); overflow: hidden;
+  }
+  .fill { height: 100%; background: var(--dsw-alias-brand-primary); }
+  .fill.warn { background: rgb(154,103,0); }
+  .fill.danger { background: rgb(200,60,60); }
+  .pack-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 0; border-top: 0.5px solid rgba(128,128,128,0.2);
+    font-size: 12px;
+  }
+  .pack-row:first-child { border-top: 0; }
+  .pack-swatch { flex: none; width: 10px; height: 10px; border-radius: 3px; background: rgb(46,160,67); }
+  .pack-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pack-name .total { opacity: .5; }
+  .pack-remain { flex: none; opacity: .7; white-space: nowrap; }
+  .pack-expiry { flex: none; font-size: 11px; opacity: .5; white-space: nowrap; }
+
+  /* ===== Tab2 可选模型（grid 真实值） ===== */
+  .models-label { font-weight: 600; }
+  .models-hint { font-size: 12px; opacity: 0.6; margin-bottom: 6px; }
+  .model-row {
+    display: grid;
+    grid-template-columns: 34px 1fr 96px 100px 56px;
+    gap: 6px; align-items: center; font-size: 13px;
+    padding: 5px 6px; margin: 0 -6px; border-radius: 8px;
+    transition: background .12s;
+  }
+  .model-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
+  .toggle { position: relative; display: inline-block; width: 34px; height: 19px; }
+  .toggle input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .toggle .track { position: absolute; inset: 0; pointer-events: none; border-radius: 19px; background: var(--dsw-alias-border-l4); transition: background .15s; }
+  .toggle input:checked + .track { background: var(--dsw-alias-brand-primary); }
+  .toggle .knob { position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.25); transition: left .15s; pointer-events: none; }
+  .toggle input:checked ~ .knob { left: 17px; }
+  .name-cell { display: flex; gap: 8px; align-items: center; min-width: 0; }
+  .m-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge-degraded {
+    flex: none; font-size: 11px; padding: 0 5px; border-radius: 6px;
+    border: 0.5px solid rgba(163,106,3,0.45); color: rgb(154,103,0); opacity: .9;
+  }
+  .badge-promo {
+    flex: none; font-size: 11px; padding: 0 6px; border-radius: 6px;
+    background: rgba(46,160,67,0.12); color: rgb(46,160,67);
+  }
+  .price { font-size: 11px; opacity: .45; justify-self: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  select.mini {
+    font: inherit; font-size: 11px; padding: 2px 5px; border-radius: 6px;
+    background: #1e2230; color: inherit; border: 0.5px solid rgba(128,128,128,0.4);
+    width: 100%;
+  }
+
+  /* ===== Tab3/4 统计卡片与条形图 ===== */
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 8px; margin-bottom: 14px;
+  }
+  .stat-card {
+    border: 0.5px solid var(--dsw-alias-border-l4); border-radius: 10px;
+    background: var(--card-bg-2); padding: 10px 12px;
+  }
+  .stat-label { font-size: 11px; opacity: .55; }
+  .stat-num { font-size: 20px; font-weight: 600; margin-top: 2px; }
+  .stat-num .unit { font-size: 11px; font-weight: 400; opacity: .55; margin-left: 2px; }
+  .chart-title { font-size: 13px; font-weight: 600; margin: 0 0 2px; }
+  .chart-desc { font-size: 11.5px; opacity: .55; margin: 0 0 10px; }
+  .bar-row { display: grid; grid-template-columns: 110px 1fr 64px; gap: 8px; align-items: center; padding: 4px 0; font-size: 12px; }
+  .bar-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .8; }
+  .bar-track { height: 10px; border-radius: 5px; background: rgba(128,128,128,0.18); overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 5px; }
+  .bar-val { text-align: right; font-variant-numeric: tabular-nums; opacity: .75; white-space: nowrap; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; font-size: 11px; opacity: .8; }
+  .legend .item { display: flex; align-items: center; gap: 5px; }
+  .legend .swatch { width: 10px; height: 10px; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <h1>Qoder 卡片完整可交互预览</h1>
+  <p class="note">
+    四个 tab 可点击切换（下划线高亮 + 字重变化）；Tab1 账号卡片可点击展开资源明细（订阅版本资源 / 个人资源包两个独立折叠区）；
+    Tab3/Tab4 含四格统计卡片与按模型分类的水平条形图。样式值取自 <code>lib/client.js</code> 当前版本
+    （34px/1fr/96px/100px/56px 模型 grid、brand #4d6bfe、border-l4、999px pill、4px 进度条），暗色 #0f1115 与 DSH 实际一致。
+    资源明细与统计数字为假数据。
+  </p>
+
+  <div class="card open">
+    <button class="card-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="titles">
+        <span class="title">Qoder</span>
+        <span class="desc">使用 Qoder 设备码登录，并选择模型选择器中要提供的模型。</span>
+      </span>
+      <span class="chevron">▾</span>
+    </button>
+    <div class="card-body">
+
+      <!-- ===== 账号操作行（tab 栏上方） ===== -->
+      <div class="account-actions">
+        <button class="btn-brand">网页登录添加账号</button>
+        <button class="btn-ghost">刷新</button>
+        <span class="hint">切换或删除通过设备码登录添加的 Qoder 账号。</span>
+      </div>
+
+      <!-- ===== Tab 栏 ===== -->
+      <div class="tab-bar" id="tabbar">
+        <button class="tab-btn active" data-pane="p1">账号管理</button>
+        <button class="tab-btn" data-pane="p2">可选模型</button>
+        <button class="tab-btn" data-pane="p3">资源明细</button>
+        <button class="tab-btn" data-pane="p4">用量统计</button>
+      </div>
+
+      <!-- ================= Tab1 账号管理 ================= -->
+      <div class="tab-pane active" id="p1">
+        <div class="models-hint">点击账号卡片展开/收起资源明细；「当前」账号置顶。</div>
+
+        <!-- 卡片 1：当前（展开态演示） -->
+        <article class="account-card current">
+          <div class="ac-head" onclick="this.nextElementSibling.classList.toggle('open'); this.querySelector('.sec-chev-card').style.transform = this.nextElementSibling.classList.contains('open') ? 'rotate(180deg)' : 'none'">
+            <div class="avatar tone0">M</div>
+            <div class="ac-names">
+              <div class="ac-name">demo-user</div>
+              <div class="ac-mail">user@example.com</div>
+            </div>
+            <div class="ac-meta">
+              <span class="dot-online" title="在线"></span>
+              <span class="chip neutral" title="2026/10/19 19:04:02">2026/10/19 到期</span>
+            </div>
+            <button class="btn-checkin" title="签到接口尚未接入，接入后可每日签到领积分" disabled>签到</button>
+            <span class="pill-current">当前</span>
+            <span class="sec-chev sec-chev-card" style="font-size:11px; opacity:.6; display:inline-block;">▾</span>
+          </div>
+          <div class="ac-detail sec open">
+            <!-- ① 订阅版本的资源 -->
+            <div class="sec-toggle" onclick="toggleSec(this)">
+              <span class="sec-title">订阅版本的资源</span>
+              <span class="sec-chev">▾</span>
+            </div>
+            <div class="sec-desc">当前计划的月度配额与使用情况（将于 2026-10-01 刷新配额）</div>
+            <div class="sec-body open">
+              <div class="big-row">
+                <span class="big-num">300 / 300</span>
+                <span class="pct">已使用 100%</span>
+                <span class="remain">剩余 0</span>
+              </div>
+              <div class="track"><div class="fill danger" style="width:100%"></div></div>
+            </div>
+            <!-- ② 个人资源包 -->
+            <div class="sec-toggle" onclick="toggleSec(this)">
+              <span class="sec-title">个人资源包</span>
+              <span class="sec-chev">▾</span>
+            </div>
+            <div class="sec-desc">通过活动或购买获得，仅供个人使用</div>
+            <div class="sec-body open">
+              <div class="big-row">
+                <span class="big-num">109 / 200</span>
+                <span class="pct">已使用 55%</span>
+                <span class="remain">剩余 91</span>
+              </div>
+              <div class="track"><div class="fill" style="width:55%"></div></div>
+              <div style="margin-top:10px">
+                <div class="pack-row">
+                  <span class="pack-swatch"></span>
+                  <span class="pack-name">新手礼包 <span class="total">(总计:100)</span></span>
+                  <span class="pack-remain">剩余 60 credits</span>
+                  <span class="pack-expiry">2026-11-30 到期</span>
+                </div>
+                <div class="pack-row">
+                  <span class="pack-swatch"></span>
+                  <span class="pack-name">活动赠送包 <span class="total">(总计:50)</span></span>
+                  <span class="pack-remain">剩余 21 credits</span>
+                  <span class="pack-expiry">2026-12-31 到期</span>
+                </div>
+                <div class="pack-row">
+                  <span class="pack-swatch"></span>
+                  <span class="pack-name">连续签到奖励 <span class="total">(总计:50)</span></span>
+                  <span class="pack-remain">剩余 10 credits</span>
+                  <span class="pack-expiry">2027-01-15 到期</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- 卡片 2：备选（收起态） -->
+        <article class="account-card">
+          <div class="ac-head" onclick="this.nextElementSibling.classList.toggle('open')">
+            <div class="avatar tone1">A</div>
+            <div class="ac-names">
+              <div class="ac-name">alpha-dev</div>
+              <div class="ac-mail">alpha@example.com</div>
+            </div>
+            <div class="ac-meta">
+              <span class="dot-off" title="离线"></span>
+              <span class="chip warning" title="剩余不足 7 天">5 天后过期</span>
+            </div>
+            <button class="btn-checkin" disabled>签到</button>
+            <button class="pill-standby" title="将此账号设为当前使用账号">备选</button>
+          </div>
+          <div class="ac-detail sec" style="display:none">
+            <div class="sec-toggle" onclick="toggleSec(this)">
+              <span class="sec-title">订阅版本的资源</span><span class="sec-chev">▾</span>
+            </div>
+            <div class="sec-desc">当前计划的月度配额与使用情况（将于 2026-10-01 刷新配额）</div>
+            <div class="sec-body open">
+              <div class="big-row"><span class="big-num">40 / 300</span><span class="pct">已使用 13%</span><span class="remain">剩余 260</span></div>
+              <div class="track"><div class="fill" style="width:13%"></div></div>
+            </div>
+          </div>
+        </article>
+
+        <!-- 卡片 3：备选（收起态，已过期 chip） -->
+        <article class="account-card">
+          <div class="ac-head" onclick="this.nextElementSibling.classList.toggle('open')">
+            <div class="avatar tone2">K</div>
+            <div class="ac-names">
+              <div class="ac-name">kimi-fan</div>
+              <div class="ac-mail">kimi@example.com</div>
+            </div>
+            <div class="ac-meta">
+              <span class="dot-off" title="离线"></span>
+              <span class="chip danger" title="2026-09-01 00:00:00">已过期</span>
+            </div>
+            <button class="btn-checkin" disabled>签到</button>
+            <button class="pill-standby" title="将此账号设为当前使用账号">备选</button>
+          </div>
+          <div class="ac-detail sec" style="display:none">
+            <div class="sec-desc">该账号令牌已过期，请重新登录后查看资源。</div>
+          </div>
+        </article>
+      </div>
+
+      <!-- ================= Tab2 可选模型 ================= -->
+      <div class="tab-pane" id="p2">
+        <div class="models-label">可选模型</div>
+        <div class="models-hint">仅勾选的模型会出现在模型选择器中。</div>
+
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></span>
+          <span class="name-cell"><span class="m-name">Auto</span></span>
+          <span></span>
+          <select class="mini"><option>200K (200K)</option></select>
+          <span class="price"></span>
+        </div>
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></span>
+          <span class="name-cell"><span class="m-name">Ultimate</span></span>
+          <select class="mini"><option>关闭思考</option><option>低</option><option>中</option><option selected>高</option><option>极高</option><option>最大</option></select>
+          <select class="mini"><option>200K (200K)</option><option>400K (400K)</option><option>1M (1000K)</option></select>
+          <span class="price">×1.6</span>
+        </div>
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></span>
+          <span class="name-cell"><span class="m-name">Performance</span></span>
+          <span></span>
+          <select class="mini"><option>200K (200K)</option></select>
+          <span class="price">×1.2</span>
+        </div>
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox"><span class="track"></span><span class="knob"></span></span>
+          <span class="name-cell"><span class="m-name">Efficient</span><span class="badge-degraded" title="gateway reports no available backend (HTTP 429 provider_error)">不可用</span></span>
+          <span></span><span></span>
+          <span class="price"></span>
+        </div>
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></span>
+          <span class="name-cell"><span class="m-name">Sonus</span></span>
+          <select class="mini"><option selected>关闭思考</option><option>低</option><option>中</option><option>高</option></select>
+          <select class="mini"><option>200K (200K)</option><option>400K (400K)</option></select>
+          <span class="price">×1</span>
+        </div>
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></span>
+          <span class="name-cell"><span class="m-name">Cantus</span></span>
+          <select class="mini"><option selected>关闭思考</option><option>低</option><option>中</option><option>高</option></select>
+          <span></span>
+          <span class="price">×1</span>
+        </div>
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox"><span class="track"></span><span class="knob"></span></span>
+          <span class="name-cell">
+            <span class="m-name">Qwen3.8-Max</span>
+            <span class="badge-degraded" title="not available on this account (measured …)">不可用</span>
+            <span class="badge-promo" title="限时免费">限时免费</span>
+          </span>
+          <select class="mini"><option selected>关闭思考</option><option>低</option><option>中</option><option>高</option></select>
+          <select class="mini"><option>200K (200K)</option><option>400K (400K)</option></select>
+          <span class="price">×1</span>
+        </div>
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></span>
+          <span class="name-cell"><span class="m-name">Qwen3.8-Flash</span><span class="badge-promo" title="夜间免费">夜间免费</span></span>
+          <select class="mini"><option selected>关闭思考</option><option>低</option><option>中</option></select>
+          <select class="mini"><option>200K (200K)</option></select>
+          <span class="price">×0.5</span>
+        </div>
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox"><span class="track"></span><span class="knob"></span></span>
+          <span class="name-cell"><span class="m-name">Qwen3.7-Max</span><span class="badge-promo" title="错峰5折">错峰5折</span></span>
+          <span></span>
+          <select class="mini"><option>200K (200K)</option><option>400K (400K)</option></select>
+          <span class="price">×1</span>
+        </div>
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></span>
+          <span class="name-cell"><span class="m-name">Qwen3.7-Plus</span><span class="badge-promo" title="错峰5折">错峰5折</span></span>
+          <span></span>
+          <select class="mini"><option>200K (200K)</option></select>
+          <span class="price">×1</span>
+        </div>
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></span>
+          <span class="name-cell"><span class="m-name">Kimi-K3</span></span>
+          <span></span>
+          <select class="mini"><option>200K (200K)</option></select>
+          <span class="price">×1.1</span>
+        </div>
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></span>
+          <span class="name-cell"><span class="m-name">Kimi-K2.8-Preview</span></span>
+          <span></span>
+          <span></span>
+          <span class="price">×1</span>
+        </div>
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></span>
+          <span class="name-cell"><span class="m-name">GLM-5.3</span></span>
+          <select class="mini"><option selected>关闭思考</option><option>低</option><option>中</option><option>高</option><option>极高</option></select>
+          <select class="mini"><option>200K (200K)</option><option selected>1M (1000K)</option></select>
+          <span class="price">×1</span>
+        </div>
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></span>
+          <span class="name-cell"><span class="m-name">GLM-5.3-Flash</span></span>
+          <select class="mini"><option selected>关闭思考</option><option>低</option><option>中</option><option>高</option></select>
+          <span></span>
+          <span class="price">×0.8</span>
+        </div>
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></span>
+          <span class="name-cell"><span class="m-name">DeepSeek-V4-Pro</span></span>
+          <select class="mini"><option selected>关闭思考</option><option>低</option><option>中</option><option>高</option><option>极高</option><option>最大</option></select>
+          <select class="mini"><option>200K (200K)</option><option>400K (400K)</option></select>
+          <span class="price">×1.2</span>
+        </div>
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox"><span class="track"></span><span class="knob"></span></span>
+          <span class="name-cell"><span class="m-name">DeepSeek-Flash</span></span>
+          <select class="mini"><option selected>关闭思考</option><option>低</option><option>中</option></select>
+          <span></span>
+          <span class="price">×0.8</span>
+        </div>
+        <div class="model-row">
+          <span class="toggle"><input type="checkbox" checked><span class="track"></span><span class="knob"></span></span>
+          <span class="name-cell"><span class="m-name">MiniMax-M3</span></span>
+          <span></span><span></span>
+          <span class="price">×1</span>
+        </div>
+      </div>
+
+      <!-- ================= Tab3 资源明细 ================= -->
+      <div class="tab-pane" id="p3">
+        <div class="chart-title">资源总览</div>
+        <div class="chart-desc">订阅配额与个人资源包的剩余情况（假数据演示）</div>
+        <div class="stat-grid">
+          <div class="stat-card"><div class="stat-label">订阅剩余</div><div class="stat-num">0<span class="unit">credits</span></div></div>
+          <div class="stat-card"><div class="stat-label">资源包剩余</div><div class="stat-num">91<span class="unit">credits</span></div></div>
+          <div class="stat-card"><div class="stat-label">合计可用</div><div class="stat-num">91<span class="unit">credits</span></div></div>
+          <div class="stat-card"><div class="stat-label">配额刷新</div><div class="stat-num" style="font-size:14px; padding-top:5px;">10-01</div></div>
+        </div>
+        <div class="chart-title">各资源包剩余占比</div>
+        <div class="chart-desc">按包内剩余 credits 排序</div>
+        <div class="bar-row"><span class="bar-name">新手礼包 (总计:100)</span><div class="bar-track"><div class="bar-fill" style="width:60%; background:var(--dsw-alias-brand-primary)"></div></div><span class="bar-val">60</span></div>
+        <div class="bar-row"><span class="bar-name">活动赠送包 (总计:50)</span><div class="bar-track"><div class="bar-fill" style="width:42%; background:rgb(46,160,67)"></div></div><span class="bar-val">21</span></div>
+        <div class="bar-row"><span class="bar-name">连续签到奖励 (总计:50)</span><div class="bar-track"><div class="bar-fill" style="width:20%; background:rgb(154,103,0)"></div></div><span class="bar-val">10</span></div>
+        <div class="legend">
+          <span class="item"><span class="swatch" style="background:var(--dsw-alias-brand-primary)"></span>订阅版本</span>
+          <span class="item"><span class="swatch" style="background:rgb(46,160,67)"></span>资源包</span>
+          <span class="item"><span class="swatch" style="background:rgb(154,103,0)"></span>即将到期</span>
+        </div>
+      </div>
+
+      <!-- ================= Tab4 用量统计 ================= -->
+      <div class="tab-pane" id="p4">
+        <div class="chart-title">用量统计</div>
+        <div class="chart-desc">按时间窗口与模型分类的 credits 消耗（假数据演示）</div>
+        <div class="stat-grid">
+          <div class="stat-card"><div class="stat-label">剩余积分</div><div class="stat-num">91</div></div>
+          <div class="stat-card"><div class="stat-label">今日消耗</div><div class="stat-num">37</div></div>
+          <div class="stat-card"><div class="stat-label">近 7 天消耗</div><div class="stat-num">412</div></div>
+          <div class="stat-card"><div class="stat-label">本月消耗</div><div class="stat-num">1,391</div></div>
+        </div>
+        <div class="chart-title">按模型分类</div>
+        <div class="chart-desc">近 7 天各模型 credits 消耗占比</div>
+        <div class="bar-row"><span class="bar-name">GLM-5.3</span><div class="bar-track"><div class="bar-fill" style="width:92%; background:var(--dsw-alias-brand-primary)"></div></div><span class="bar-val">182</span></div>
+        <div class="bar-row"><span class="bar-name">DeepSeek-V4-Pro</span><div class="bar-track"><div class="bar-fill" style="width:64%; background:#7a8cff"></div></div><span class="bar-val">127</span></div>
+        <div class="bar-row"><span class="bar-name">Kimi-K3</span><div class="bar-track"><div class="bar-fill" style="width:38%; background:rgb(46,160,67)"></div></div><span class="bar-val">75</span></div>
+        <div class="bar-row"><span class="bar-name">Qwen3.7-Plus</span><div class="bar-track"><div class="bar-fill" style="width:22%; background:rgb(154,103,0)"></div></div><span class="bar-val">44</span></div>
+        <div class="bar-row"><span class="bar-name">MiniMax-M3</span><div class="bar-track"><div class="bar-fill" style="width:12%; background:rgb(136,78,206)"></div></div><span class="bar-val">24</span></div>
+        <div class="legend">
+          <span class="item"><span class="swatch" style="background:var(--dsw-alias-brand-primary)"></span>GLM-5.3</span>
+          <span class="item"><span class="swatch" style="background:#7a8cff"></span>DeepSeek-V4-Pro</span>
+          <span class="item"><span class="swatch" style="background:rgb(46,160,67)"></span>Kimi-K3</span>
+          <span class="item"><span class="swatch" style="background:rgb(154,103,0)"></span>Qwen3.7-Plus</span>
+          <span class="item"><span class="swatch" style="background:rgb(136,78,206)"></span>MiniMax-M3</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  // Tab 切换：下划线 + 字重高亮（真实 tab-bar 行为）
+  document.getElementById('tabbar').addEventListener('click', (event) => {
+    const btn = event.target.closest('.tab-btn')
+    if (!btn) return
+    document.querySelectorAll('#tabbar .tab-btn').forEach((b) => b.classList.remove('active'))
+    btn.classList.add('active')
+    document.querySelectorAll('.tab-pane').forEach((p) => p.classList.remove('active'))
+    document.getElementById(btn.dataset.pane).classList.add('active')
+  })
+  // 资源明细的二级折叠区（订阅版本资源 / 个人资源包）
+  function toggleSec(head) {
+    head.classList.toggle('open')
+    head.nextElementSibling.classList.toggle('open')
+    head.nextElementSibling.nextElementSibling.classList.toggle('open')
+  }
+</script>
+
+<!-- ====================================================================
+     后端接线层 (t12) — 账号管理接真实接口
+     ====================================================================
+     接口（形状取自真实 HTTP 响应，见 D:\DSH\tmp\p0-crypto\ui-wire\shapes-raw.txt）：
+       GET  /plugins/dsh-qoder-cli/accounts           -> 200 裸数组 [Account]
+       POST /plugins/dsh-qoder-cli/accounts/activate  -> 200 {success,message} | 404/400/403/415 {error}
+       POST /plugins/dsh-qoder-cli/accounts/probe     -> 200 {available}       | 404/400/403/415 {error}
+     Account = { uid, email, name, isCurrent, credentialFreshness }
+       uid 可为 null（上游 userinfo 取不到时）-> 该条目不可 activate/probe
+       credentialFreshness 是 epoch-ms 数字，不是日期串
+
+     纪律：
+       * 写操作只显示服务端真实返回，不做乐观假设（失败必须可见）
+       * 任何 4xx/5xx/网络错误都渲染出来，绝不静默吞掉
+       * 视觉外壳不变：本层只驱动既有 .account-card DOM，不改样式
+     ==================================================================== -->
+<script>
+(function () {
+  'use strict'
+
+  var ACCOUNTS_PATH = '/plugins/dsh-qoder-cli/accounts'
+  var ACTIVATE_PATH = '/plugins/dsh-qoder-cli/accounts/activate'
+  var PROBE_PATH = '/plugins/dsh-qoder-cli/accounts/probe'
+
+  // 预览页直接 file:// 打开时没有后端：此时保持静态演示数据不变，
+  // 并明确提示（不能假装连上了）。
+  var LIVE = location.protocol === 'http:' || location.protocol === 'https:'
+
+  var listEl = document.getElementById('p1')
+  var actionsEl = document.querySelector('.account-actions')
+  var statusEl = null
+
+  function ensureStatusEl() {
+    if (statusEl !== null) return statusEl
+    statusEl = document.createElement('div')
+    statusEl.id = 'ac-status'
+    statusEl.setAttribute('role', 'status')
+    statusEl.setAttribute('aria-live', 'polite')
+    statusEl.style.cssText = 'font-size:12px;margin:6px 0 2px;line-height:1.5'
+    actionsEl.parentNode.insertBefore(statusEl, actionsEl.nextSibling)
+    return statusEl
+  }
+
+  /**
+   * 统一的状态显示。kind: 'info' | 'warn' | 'error' | 'ok'
+   * 语义色保持硬编码（forge-ui §2：语义色不走 token）。
+   */
+  function setStatus(kind, text) {
+    var el = ensureStatusEl()
+    if (!text) { el.textContent = ''; el.style.display = 'none'; return }
+    el.style.display = ''
+    el.textContent = text
+    el.style.color = kind === 'error' ? 'rgb(220,80,80)'
+      : kind === 'warn' ? 'rgb(210,150,40)'
+      : kind === 'ok' ? 'rgb(46,160,67)'
+      : ''
+    el.style.opacity = kind === 'info' ? '0.7' : '1'
+  }
+
+  /**
+   * 把任意失败面归一成一句可显示的话。
+   * 覆盖：网络错误（fetch 抛）、非 JSON 响应、4xx/5xx 的 {error} 体。
+   * 任何一条都不能被吞掉——这是本工作区铁律 2。
+   */
+  function describeFailure(err, res, bodyText) {
+    if (err) return '网络错误：' + (err.message || String(err))
+    if (res) {
+      var detail = null
+      if (bodyText) { try { detail = JSON.parse(bodyText).error } catch (e) { /* 非 JSON */ } }
+      var label = 'HTTP ' + res.status
+      if (res.status === 403) return label + '：请求未被信任（需要 loopback Origin）' + (detail ? ' — ' + detail : '')
+      if (res.status === 404) return label + '：账号未找到' + (detail ? ' — ' + detail : '')
+      if (res.status === 415) return label + '：Content-Type 必须是 application/json'
+      if (res.status === 405) return label + '：方法不允许'
+      if (res.status === 400) return label + '：请求无效' + (detail ? ' — ' + detail : '')
+      return label + (detail ? '：' + detail : (bodyText ? '：' + bodyText.slice(0, 200) : ''))
+    }
+    return '未知错误'
+  }
+
+  /** 一次请求；无论成败都把原始响应交回调用方处理。 */
+  function callApi(path, options) {
+    var init = options || {}
+    return fetch(path, init).then(function (res) {
+      return res.text().then(function (text) {
+        return { res: res, text: text }
+      })
+    }).then(function (r) {
+      if (!r.res.ok) throw { __api: true, res: r.res, text: r.text }
+      var data = null
+      if (r.text) { try { data = JSON.parse(r.text) } catch (e) { data = null } }
+      return data
+    })
+  }
+
+  /** 归一化异常：把上面的 {__api} 包装还原成可读信息。 */
+  function failureText(caught) {
+    if (caught && caught.__api) return describeFailure(null, caught.res, caught.text)
+    return describeFailure(caught, null, null)
+  }
+
+  function initialsOf(account) {
+    var src = account.name || account.email || account.uid || '?'
+    return String(src).trim().charAt(0).toUpperCase() || '?'
+  }
+
+  var TONES = ['tone0', 'tone1', 'tone2', 'tone3', 'tone4', 'tone5']
+
+  /** 稳定地把 uid 映射到一个既有头像色（同 uid 永远同色）。 */
+  function toneOf(account) {
+    var key = String(account.uid || account.email || account.name || '?')
+    var n = 0
+    for (var i = 0; i < key.length; i++) n = (n * 31 + key.charCodeAt(i)) % 100000
+    return TONES[n % TONES.length]
+  }
+
+  function el(tag, cls, text) {
+    var node = document.createElement(tag)
+    if (cls) node.className = cls
+    if (text !== undefined && text !== null) node.textContent = text
+    return node
+  }
+
+  /**
+   * 渲染一张账号卡片。结构对齐预览既有卡片（头像/名称/邮箱/状态/按钮），
+   * 但内容全部来自真实响应。
+   */
+  function renderCard(account, onChanged) {
+    var card = el('article', 'account-card' + (account.isCurrent ? ' current' : ''))
+
+    var head = el('div', 'ac-head')
+    head.appendChild(el('div', 'avatar ' + toneOf(account), initialsOf(account)))
+
+    var names = el('div', 'ac-names')
+    var nameText = account.name || account.email || (account.uid ? String(account.uid).slice(0, 12) + '…' : '未命名账号')
+    names.appendChild(el('div', 'ac-name', nameText))
+    if (account.email) names.appendChild(el('div', 'ac-mail', account.email))
+    head.appendChild(names)
+
+    var meta = el('div', 'ac-meta')
+    var dot = el('span', account.isCurrent ? 'dot-online' : 'dot-off')
+    dot.title = account.isCurrent ? '当前使用中' : '未激活'
+    meta.appendChild(dot)
+    if (typeof account.credentialFreshness === 'number') {
+      var fresh = new Date(account.credentialFreshness)
+      var chip = el('span', 'chip neutral', fresh.toLocaleString('zh-CN'))
+      chip.title = '凭据读取时间'
+      meta.appendChild(chip)
+    }
+    head.appendChild(meta)
+
+    card.appendChild(head)
+    card.dataset.uid = account.uid === null || account.uid === undefined ? '' : String(account.uid)
+
+    var detail = el('div', 'ac-detail sec')
+    detail.style.display = 'none'
+    var line = el('div', 'sec-desc')
+    if (account.uid === null || account.uid === undefined) {
+      // 真实边界：uid 为 null 的条目无法 activate/probe（服务端 400）。
+      line.textContent = '该账号未取到 uid（上游 userinfo 不可用），无法激活或探测。'
+      detail.appendChild(line)
+      card.appendChild(detail)
+      return card
+    }
+
+    line.textContent = 'uid：' + account.uid
+    detail.appendChild(line)
+    card.appendChild(detail)
+
+    // ---- 操作区：激活 / 探测（写操作，失败必须可见）----
+    var ops = el('div')
+    ops.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px'
+
+    if (!account.isCurrent) {
+      var activateBtn = el('button', 'pill-standby', '激活')
+      activateBtn.type = 'button'
+      activateBtn.disabled = !!account.__busy
+      activateBtn.addEventListener('click', function (ev) {
+        ev.stopPropagation()
+        activateBtn.disabled = true
+        setStatus('info', '正在激活 ' + nameText + '…')
+        callApi(ACTIVATE_PATH, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid: account.uid }),
+        }).then(function (data) {
+          // 只显示服务端真实返回；success 必须为 true 才算成功。
+          if (data && data.success === true) {
+            setStatus('ok', '激活成功：' + (data.message || '已切换') + '（' + nameText + '）')
+          } else {
+            setStatus('warn', '服务端未确认成功：' + JSON.stringify(data))
+          }
+          onChanged()
+        }).catch(function (caught) {
+          setStatus('error', '激活失败 — ' + failureText(caught))
+          activateBtn.disabled = false
+        })
+      })
+      ops.appendChild(activateBtn)
+    }
+
+    var probeBtn = el('button', 'btn-ghost', '探测可用性')
+    probeBtn.type = 'button'
+    probeBtn.style.cssText = 'font-size:12px;padding:2px 8px'
+    probeBtn.addEventListener('click', function (ev) {
+      ev.stopPropagation()
+      probeBtn.disabled = true
+      setStatus('info', '正在探测 ' + nameText + '…')
+      callApi(PROBE_PATH, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: account.uid }),
+      }).then(function (data) {
+        if (data && data.available === true) {
+          dot.className = 'dot-online'
+          dot.title = '探测：可用'
+          setStatus('ok', '探测结果：可用（' + nameText + '）')
+        } else if (data && data.available === false) {
+          dot.className = 'dot-off'
+          dot.title = '探测：不可用'
+          setStatus('warn', '探测结果：不可用（' + nameText + '）' + (data.error ? ' — ' + data.error : ''))
+        } else {
+          setStatus('warn', '探测返回形状异常：' + JSON.stringify(data))
+        }
+      }).catch(function (caught) {
+        setStatus('error', '探测失败 — ' + failureText(caught))
+      }).then(function () {
+        probeBtn.disabled = false
+      })
+    })
+    ops.appendChild(probeBtn)
+
+    detail.appendChild(ops)
+    return card
+  }
+
+  var loading = false
+
+  function refresh(manual) {
+    if (loading) return
+    loading = true
+    if (manual) setStatus('info', '正在读取账号列表…')
+    callApi(ACCOUNTS_PATH, { headers: { Accept: 'application/json' } })
+      .then(function (data) {
+        if (!Array.isArray(data)) {
+          setStatus('error', '账号列表返回形状异常（期望数组，实得 ' + (data === null ? 'null' : typeof data) + '）')
+          return
+        }
+        if (data.length === 0) {
+          setStatus('info', '未发现任何账号。')
+          listEl.innerHTML = ''
+          return
+        }
+        listEl.innerHTML = ''
+        // 保持既有语义：当前账号置顶。
+        var sorted = data.slice().sort(function (a, b) {
+          if (a.isCurrent === b.isCurrent) return 0
+          return a.isCurrent ? -1 : 1
+        })
+        sorted.forEach(function (account) {
+          listEl.appendChild(renderCard(account, function () { setTimeout(refresh, 0) }))
+        })
+        setStatus('', '')
+      })
+      .catch(function (caught) {
+        // 关键：列表失败不能留下旧数据冒充成功。
+        listEl.innerHTML = ''
+        setStatus('error', '无法读取账号列表 — ' + failureText(caught))
+      })
+      .then(function () { loading = false })
+  }
+
+  if (!LIVE) {
+    if (actionsEl) {
+      setStatus('warn', '当前以 file:// 打开，没有后端可用：下方为静态演示数据。'
+        + '把它放进 DSH 插件页（http/https）会自动改读真实接口。')
+    }
+    return
+  }
+
+  // 刷新按钮 = .account-actions 里的第二个按钮（既有 DOM，不改标记）。
+  if (actionsEl) {
+    var buttons = actionsEl.querySelectorAll('button')
+    if (buttons[1]) {
+      buttons[1].addEventListener('click', function () { refresh(true) })
+      buttons[1].disabled = false
+    }
+  }
+
+  refresh(false)
+})();
+</script>
+</body>
+</html>
