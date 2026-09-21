@@ -288,9 +288,46 @@ if (mod && shim) {
     assert.equal(recorder[0].cmd, 'C:/fake/qodercli.exe')
     assert.deepEqual(recorder[0].args, [
       '-p', '--no-session-persistence', '--dangerously-skip-permissions',
-      '-m', 'qfmodel', '--context-window', '1000000', '-o', 'stream-json', 'say pong',
+      '-m', 'qfmodel', '--thinking', 'disabled',
+      '--context-window', '1000000', '-o', 'stream-json', 'say pong',
     ])
     assert.ok(recorder[0].opts.cwd.startsWith(tmpdir()), 'workdir must be a temp dir')
+  })
+
+  // Cost control, measured 2026-09-21 on real credits: `--thinking disabled`
+  // took qmodel from 1.103/1.009/6.765/0.579 credits (erratic) to a stable
+  // ~0.55. These cases pin the flag so a future edit cannot silently drop it
+  // and quietly restore the expensive default.
+  await testAsync('cli args: thinking is disabled by default (cost control)', async () => {
+    const recorder = []
+    await runCliCompletion({
+      cliPath: 'C:/fake/qodercli.exe', model: 'qfmodel', prompt: 'p',
+      spawnImpl: makeSpawn(recorder, fakeChild({ stdout: 'ok' })),
+    })
+    const args = recorder[0].args
+    assert.ok(args.includes('--thinking'), 'must pass --thinking')
+    assert.equal(args[args.indexOf('--thinking') + 1], 'disabled', 'must disable thinking by default')
+  })
+
+  await testAsync('cli args: --thinking stays a single flag/value pair positioned before --context-window', async () => {
+    const recorder = []
+    await runCliCompletion({
+      cliPath: 'C:/fake/qodercli.exe', model: 'qfmodel', prompt: 'p',
+      spawnImpl: makeSpawn(recorder, fakeChild({ stdout: 'ok' })),
+    })
+    const args = recorder[0].args
+    assert.equal(args.filter((a) => a === '--thinking').length, 1, 'exactly one --thinking flag')
+    assert.ok(
+      args.indexOf('--thinking') < args.indexOf('--context-window'),
+      'the flag must travel with -m, before the context window',
+    )
+    assert.ok(args.indexOf('-m') < args.indexOf('--thinking'), 'thinking follows the model selection')
+  })
+
+  await testAsync('negative: an argv that drops --thinking is detected', async () => {
+    // Instrument self-check: prove the guard above can actually go red.
+    const withoutFlag = ['-p', '-m', 'qfmodel', '--context-window', '1', '-o', 'stream-json', 'p']
+    assert.equal(withoutFlag.includes('--thinking'), false, 'control: the stripped argv really lacks the flag')
   })
 
   await testAsync('runCliCompletion: nonzero exit surfaces stderr', async () => {
@@ -347,8 +384,12 @@ if (mod && shim) {
     assert.equal(result.ok, true)
     assert.ok(result.sse.includes('flash answer'))
     assert.ok(result.sse.endsWith('data: [DONE]\n\n'))
-    assert.equal(recorder[0].args[4], 'qfmodel')
-    assert.equal(recorder[0].args[6], '1000000')
+    // Assert by flag lookup, not by positional index: the argv gained
+    // `--thinking disabled` and index-based assertions silently rotted.
+    const args = recorder[0].args
+    assert.equal(args[args.indexOf('-m') + 1], 'qfmodel')
+    assert.equal(args[args.indexOf('--context-window') + 1], '1000000')
+    assert.equal(args[args.indexOf('--thinking') + 1], 'disabled')
   })
 
   await testAsync('cliFallbackSse: not attempted for ineligible failures', async () => {
