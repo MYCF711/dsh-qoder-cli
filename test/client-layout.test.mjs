@@ -284,6 +284,85 @@ test('negative: loading/empty distinction fails when the code null-check is remo
   }
 })
 
+// ------------------------------
+// ACCOUNT ACTIONS ROW + SIGN-IN CHIP
+//
+// Why this block exists: an audit found that `client-layout.test.mjs` referenced
+// `ACCOUNTS_PATH` but NOTHING asserted the three controls the user actually asked
+// for — the add-account button, the refresh button, and the sign-in chip. The
+// whole suite could stay green with all three deleted. That is not hypothetical:
+// the user reported "these were never implemented" when in fact they were
+// present and merely hidden behind a crashed panel, and no test could settle the
+// question either way.
+//
+// These assertions are content-anchored on the shipped literals, so removing a
+// control fails here instead of silently shipping.
+// ------------------------------
+const actionsStart = source.indexOf('const accountActions = h(')
+assert.ok(actionsStart !== -1, 'account actions row not found (add-account / refresh live here)')
+const actionsEnd = source.indexOf("ghostButton('刷新'", actionsStart)
+assert.ok(actionsEnd > actionsStart, "refresh button not found after the actions row")
+const actionsRegion = source.slice(actionsStart, actionsEnd + 120)
+
+test('account actions: the add-account button is wired to a login flow', () => {
+  assert.ok(
+    source.includes("'网页登录添加账号'"),
+    'the add-account label must be present (users look for this exact string)',
+  )
+  assert.ok(
+    /onClick:\s*\(\)\s*=>\s*void\s+beginLogin\(\)/.test(actionsRegion) ||
+      /onClick:\s*\(\)\s*=>\s*void\s+beginLogin\(\)/.test(source),
+    'the add-account button must call beginLogin(); a label with no handler is a dead control',
+  )
+})
+
+test('account actions: the refresh button re-reads BOTH status and accounts', () => {
+  assert.ok(source.includes("ghostButton('刷新'"), 'the refresh button must exist')
+  // A refresh that only re-reads status leaves a stale account list on screen —
+  // the exact failure the button is there to fix.
+  const refreshStart = source.indexOf("ghostButton('刷新'")
+  const refreshBody = source.slice(refreshStart, refreshStart + 220)
+  assert.ok(/\bload\(\)/.test(refreshBody), 'refresh must call load() to re-read status')
+  assert.ok(/\bloadAccounts\(\)/.test(refreshBody), 'refresh must call loadAccounts() to re-read the list')
+})
+
+test('sign-in chip: all three states are rendered', () => {
+  for (const key of ['signin-claimable', 'signin-claimed', 'signin-none']) {
+    assert.ok(source.includes(`key: '${key}'`), `the ${key} state must be rendered`)
+  }
+})
+
+test('sign-in chip: the claimable state opens the campaign page (no fake one-click)', () => {
+  // The claim action lives inside Qoder's activity iframe; no REST endpoint
+  // accepts it (GET /sash/api/v1/me/campaigns answers 200, but
+  // POST .../claim, /checkin and /signin all answer 404 — measured 2026-09-21).
+  // The honest implementation therefore opens the browser rather than pretending
+  // to claim. This asserts the button does SOMETHING reachable, so it can never
+  // silently degrade into a dead control.
+  const claimStart = source.indexOf("key: 'signin-claimable'")
+  const claimBody = source.slice(claimStart, claimStart + 900)
+  assert.ok(
+    /window\.open\(/.test(claimBody),
+    'the claimable state must open the campaign URL — there is no claim endpoint to POST to',
+  )
+})
+
+test('negative: actions assertion fails when the refresh handler is hollowed out', () => {
+  const mutated = actionsRegion.replace('void load()', 'void 0')
+  if (mutated === actionsRegion) throw new Error('mutation did not apply — refresh body text drifted')
+  if (holds((src) => { if (!/\bload\(\)/.test(src)) throw new Error('missing') }, mutated)) {
+    throw new Error('refresh assertion passed a hollowed-out handler — it cannot report red')
+  }
+})
+
+test('negative: sign-in assertion fails when a state key is removed', () => {
+  const mutated = source.replace("key: 'signin-claimed'", "key: 'REMOVED'")
+  if (mutated === source) throw new Error('mutation did not apply — signin key text drifted')
+  if (holds((src) => { if (!src.includes("key: 'signin-claimed'")) throw new Error('missing') }, mutated)) {
+    throw new Error('sign-in assertion passed a source missing a state — it cannot report red')
+  }
+})
+
 test('negative: token-existence check reports a fabricated token', () => {
   const theme = readFileSync(
     'D:/DSH Desktop/resources/app/node_modules/@deepseek-ai/dsh-client-ui-theme/lib/client.js',
