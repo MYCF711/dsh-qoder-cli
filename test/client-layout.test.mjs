@@ -363,6 +363,94 @@ test('negative: sign-in assertion fails when a state key is removed', () => {
   }
 })
 
+// ------------------------------
+// TEMPORAL DEAD ZONE: a helper used before its own `const` initializes
+//
+// Reported symptom: "the card appears, then clicking it makes it disappear" —
+// the same shape as the earlier web-search bug. Reproduced against the real
+// client:
+//
+//   ReferenceError: Cannot access 'ghostButton' before initialization
+//     at accountRow            (client.js:1456)
+//     at Array.map
+//     at QoderPluginCardBody   (client.js:1492)
+//
+// `accountRow` was defined around L1378 and USED `ghostButton`, whose `const`
+// sat around L1507. Rendering is lazy, so nothing threw while the account list
+// was empty — `accountRow` was simply never called. The moment GET /accounts
+// returned a real account, the row body evaluated, the TDZ threw, and the slot
+// host unmounted the entire card. Measured both ways: empty list survives, one
+// account throws.
+//
+// A static scan is the correct instrument: the defect is purely an ORDERING
+// property of the source, and a render harness would need a full React runtime
+// in CI.
+// ------------------------------
+test('no shared helper is referenced before its own const declaration (TDZ guard)', () => {
+  const lines = source.split(/\r?\n/)
+
+  const declLine = new Map()
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^\s{4,}const\s+([A-Za-z_$][\w$]*)\s*=/.exec(lines[i])
+    if (m !== null && !declLine.has(m[1])) declLine.set(m[1], i)
+  }
+
+  // The helpers shared between `accountRow` and the actions row. This is a
+  // targeted list, not an exhaustive scan: an exhaustive scan would flag
+  // legitimate forward references inside function bodies that are called later.
+  const shared = ['ghostButton', 'accountRow', 'accountActionNote', 'runAccountAction', 'accountsPanel']
+  const offenders = []
+  for (const name of shared) {
+    const decl = declLine.get(name)
+    if (decl === undefined) continue
+    for (let i = 0; i < decl; i++) {
+      if (!new RegExp(`\\b${name}\\b`).test(lines[i])) continue
+      if (new RegExp(`const\\s+${name}\\b`).test(lines[i])) continue
+      const trimmed = lines[i].trim()
+      if (trimmed.startsWith('*') || trimmed.startsWith('//')) continue
+      offenders.push(`${name} used at L${i + 1} but declared at L${decl + 1}`)
+      break
+    }
+  }
+
+  assert.deepEqual(
+    offenders,
+    [],
+    `a const is referenced before initialization (ReferenceError at render time):\n  ${offenders.join('\n  ')}`,
+  )
+})
+
+test('negative: the TDZ guard reports the measured ghostButton ordering bug', () => {
+  // Reconstruct the exact pre-fix shape and require the same scan to flag it.
+  const broken = [
+    '    const accountRow = (account) => ghostButton("x", () => {})',
+    '    const accountsPanel = h("div", null, list.map(accountRow))',
+    '    const ghostButton = (label, onClick) => h("button", null, label)',
+  ].join('\n')
+  const lines = broken.split('\n')
+  const declLine = new Map()
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^\s{4,}const\s+([A-Za-z_$][\w$]*)\s*=/.exec(lines[i])
+    if (m !== null && !declLine.has(m[1])) declLine.set(m[1], i)
+  }
+  const decl = declLine.get('ghostButton')
+  if (decl === undefined) throw new Error('control: the fixture did not register ghostButton')
+
+  // Run the SAME scan the real guard runs, and require it to flag this fixture.
+  const offenders = []
+  for (let i = 0; i < decl; i++) {
+    if (!/\bghostButton\b/.test(lines[i])) continue
+    if (/const\s+ghostButton\b/.test(lines[i])) continue
+    offenders.push(`ghostButton used at L${i + 1} but declared at L${decl + 1}`)
+    break
+  }
+  if (offenders.length === 0) {
+    throw new Error(
+      'the TDZ guard did not flag a fixture that uses ghostButton before declaring it — the guard is blind',
+    )
+  }
+})
+
 test('negative: token-existence check reports a fabricated token', () => {
   const theme = readFileSync(
     'D:/DSH Desktop/resources/app/node_modules/@deepseek-ai/dsh-client-ui-theme/lib/client.js',
