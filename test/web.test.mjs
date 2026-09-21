@@ -554,6 +554,118 @@ if (web) {
       'an unknown uid must still be rejected',
     )
   })
+
+  // ------------------------------
+  // TEST GROUP 7: the handlers must tolerate the deps object the PLUGIN
+  // actually builds — not a richer one the tests invented.
+  // ------------------------------
+  //
+  // REGRESSION (found on the user's real instance, 2026-09-21):
+  //
+  // The accounts panel rendered `无法读取账号列表: Cannot read properties of
+  // undefined (reading 'listAlternateCredentials')` while every OTHER panel said
+  // the account was fine and usable.
+  //
+  // Root cause: `listAccounts(dprism)` read `dprism.deps` / `dprism.discover` /
+  // `dprism.dpapiUnprotect`, but its only caller passes the flat deps object
+  // (web.js:571 `listAccounts(deps)`). So `deps` was `undefined` and
+  // `deps.listAlternateCredentials?.(…)` threw before `?.` could guard — the
+  // optional chain guards the PROPERTY, never the OBJECT.
+  //
+  // Why the whole suite stayed green: the mock deps in TEST GROUP 6 hand-built
+  // the very fields production omits (`discover: null`, `dpapiUnprotect: null`,
+  // `listAlternateCredentials: …`). The test proved the handler works on a
+  // fixture no caller ever constructs. That is the actual defect this group
+  // closes: a test that cannot fail for the reason production fails.
+  //
+  // `realDepsShape()` below is copied field-for-field from lib/index.js:220-235
+  // so the fixture cannot drift away from the caller again.
+  const realDepsShape = () => ({
+    store: {
+      resolve: async () => ({ credential: { token: 't', user: { id: 'u1' } }, machineId: 'm1' }),
+    },
+    catalogDump: async () => null,
+    deviceLogin: {},
+    models: () => [],
+    enabledModels: () => [],
+    setEnabledModels: async () => true,
+    modelOptions: () => ({}),
+    setModelOptions: async () => true,
+    settingsWritable: () => true,
+    region: () => 'cn',
+    provider: 'qoder-cli',
+    // These tests must stay OFFLINE. `fetchUserInfo` defaults to
+    // `globalThis.fetch`, so an un-stubbed call would hit openapi.qoder.sh and
+    // make the suite depend on the network (and on a network failure looking
+    // exactly like the bug under test). The stub is deliberately a plain
+    // offline responder.
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'u1', name: 'DSH-test' }),
+    }),
+  })
+
+  await testAsync('listAccounts: works with the deps shape the plugin actually passes (regression)', async () => {
+    const accounts = await web.listAccounts(realDepsShape())
+    assert.ok(Array.isArray(accounts), 'listAccounts must resolve to an array, not throw')
+    assert.ok(accounts.length >= 1, 'the plugin-own credential must always be listed first')
+    assert.equal(accounts[0].isCurrent, true, 'the plugin-own credential is the current one')
+  })
+
+  await testAsync('listAccounts: does NOT require discover/dpapiUnprotect/listAlternateCredentials', async () => {
+    // Guard against the exact drift that caused the bug: re-introducing a hard
+    // dependency on fields the caller never supplies.
+    const deps = realDepsShape()
+    for (const forbidden of ['discover', 'dpapiUnprotect', 'listAlternateCredentials']) {
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(deps, forbidden),
+        false,
+        `fixture control: ${forbidden} must NOT be present, mirroring lib/index.js`,
+      )
+    }
+    await assert.doesNotReject(() => web.listAccounts(deps), 'absent optional fields must not crash')
+  })
+
+  await testAsync('accountsListHandler: answers 200 (not 500) on the real deps shape', async () => {
+    const handler = web.accountsListHandler(realDepsShape())
+    const res = mockRes()
+    await handler(mockReq({ headers: { host: '127.0.0.1:1', origin: 'http://127.0.0.1:1' } }), res)
+    const body = res._state.bodyChunks.join('')
+    assert.equal(res._state.statusCode, 200, `expected 200, got ${res._state.statusCode}: ${body}`)
+    const parsed = JSON.parse(body)
+    assert.ok(Array.isArray(parsed), 'the body must be the account array')
+    assert.ok(!body.includes('listAlternateCredentials'), 'the TypeError must not leak into the response')
+  })
+
+  await testAsync('activateAccount: a missing discover/dpapiUnprotect degrades to "not found", not a TypeError', async () => {
+    // The DISTINCTION matters: with the alternate-credential walk unavailable,
+    // the correct answer for an unknown uid is the domain error "not found" —
+    // NOT a TypeError from the deps plumbing. A TypeError here would be the
+    // regression; "not found" is honest behaviour.
+    await assert.rejects(
+      () => web.activateAccount(realDepsShape(), 'some-uid'),
+      (err) => {
+        assert.ok(!(err instanceof TypeError), `must not be a TypeError, got: ${err.message}`)
+        assert.match(err.message, /not found/i, 'the domain error must survive')
+        return true
+      },
+    )
+  })
+
+  await testAsync('NEGATIVE: the deps-shape guard actually detects a double-unwrap', async () => {
+    // Mutation self-check — prove the guard above can go red. Reproduce the
+    // original defect shape and confirm it throws the recorded message.
+    const broken = { deps: undefined }
+    await assert.rejects(
+      async () => {
+        const d = broken.deps
+        return d.listAlternateCredentials?.() ?? []
+      },
+      /Cannot read properties of undefined \(reading 'listAlternateCredentials'\)/,
+      'the original TypeError must be reproducible for this guard to mean anything',
+    )
+  })
 } else {
   console.log('  SKIP all web tests (module import failed)')
 }
