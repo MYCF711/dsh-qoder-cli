@@ -107,8 +107,14 @@ dsh plugin --profile web exec dsh-qoder-cli status   # 登录状态（--json 机
 
 ## 它是怎么工作的
 
+插件有**两条通道**，按模型自动择一：
+
 ```
-DSH ──(OpenAI SSE, 无自定义头)──▶ 本机回环 shim ──(补 Cosy-* 头)──▶ api2-v2.qoder.sh
+① REST 通道（多数模型）
+   DSH ──(OpenAI SSE, 无自定义头)──▶ 本机回环 shim ──(补 Cosy-* 头)──▶ api2-v2.qoder.sh
+
+② CLI 通道（网关拒绝、但本地 CLI 能服务的模型）
+   DSH ──▶ 回环 shim ──▶ qodercli -p -o stream-json ──▶ 把事件流转译成 OpenAI SSE
 ```
 
 **为什么必须有一个 shim**：Qoder 网关要求每个请求都带 `Cosy-ClientType` /
@@ -117,6 +123,29 @@ DSH ──(OpenAI SSE, 无自定义头)──▶ 本机回环 shim ──(补 Co
 
 shim 的安全边界：只绑 `127.0.0.1` 随机端口；每次调用都要带进程内随机生成的 bearer
 （常数时间比较）；`Host` 与 `Origin` 都必须是回环，挡住 DNS rebinding。
+
+### CLI 通道（v0.5.0）
+
+有些模型（`qfmodel` / `qmodel_38max` / `qmodel_38flash` / `smodel` / `cmodel`）
+会被 REST 网关以 `invalid_model_error` 拒绝，但本地 CLI 的私有
+`agent_chat_generation` 路径能服务它们。插件对这批模型改用 CLI：
+
+```
+qodercli -p --no-session-persistence -m <model> -o stream-json "<prompt>"
+```
+
+`-o stream-json` 是关键：CLI 每行吐一个 JSON 事件，并在**单次 `-p` 调用内**
+跑完自己的工具循环（`tool_use` → 执行 → `tool_result` → 最终 `text`）。
+
+> ⚠️ **CLI 通道下工具调用会降级为文本进度提示**（形如 `[qoder-cli: ran Bash, Read]`），
+> **不会**发标准 OpenAI `tool_calls` 帧。
+>
+> 原因是结构性的：`-p` 是一次性进程，它跑完工具循环就退出了。
+> 若把 `tool_use` 译成 `tool_calls`，调用方会去执行工具并等待结果，
+> 而**那个进程已经不存在了 → 死锁**。
+>
+> ⇒ **需要用真工具调用的场景，请选用 REST 通道的模型**
+> （`kmodel` / `gmodel` / `dmodel` / `mmodel` / `auto`）。
 
 ## 凭据是怎么读出来的
 
